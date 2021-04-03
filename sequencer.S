@@ -45,9 +45,8 @@ seq_temp_tempo_adr equ $4044
 	jsr [pdata]
 
 	; Set default tempo
-	ldx #seq_tempo_adr
 	ldd #5
-	std ,x
+	std seq_tempo_adr
 
 redraw	jsr drawscreen
 poll	jsr [inchek]
@@ -89,9 +88,8 @@ tempo
 	jsr [pdata]
 
 	; Clear temporary tempo
-	ldx #seq_temp_tempo_adr
 	ldd #0
-	std ,x
+	std seq_temp_tempo_adr
 
 t_waitc	jsr [inchek]
 	beq t_waitc
@@ -108,9 +106,8 @@ t_waitc	jsr [inchek]
 	pshs a
 
 	; Multiply existing temporary tempo by 10 and add entered number
-	ldy #(seq_temp_tempo_adr+1)
-	ldb ,y
 	ldy #seq_temp_tempo_adr
+	ldb 1,y
 	lda #10
 	mul
 	tfr d,x
@@ -118,15 +115,13 @@ t_waitc	jsr [inchek]
 	abx
 	stx ,y
 
-	; If the number is too big to fit into b before multiplication, write it (gives range of 9999)
-	cmpd #1000
-	bge t_write
+	; If the number is too big to fit into b before multiplication, write it (gives range of 2559)
+	cmpx #255
+	bgt t_write
 
 	bra t_waitc
-t_write	ldx #seq_temp_tempo_adr
-	ldy #seq_tempo_adr
-	ldd ,x
-	std ,y
+t_write	ldd seq_temp_tempo_adr
+	std seq_tempo_adr
 
 	ldx #tempo_set_msg
 	jsr [pdata]
@@ -195,8 +190,7 @@ rc_loop	lda #2
 	; Delay at start to see if press is entered
 	jsr delay_tempo
 	
-	ldy #seq_record_adr
-	ldx ,y
+	ldx seq_record_adr
 	puls b
 	pshs b
 	abx
@@ -359,9 +353,8 @@ ds_drawrow
 	jsr printspaces
 
 	; Print row title
-	puls a
-	tfr a,b
-	pshs a
+	puls b
+	pshs b
 	lslb
 	ldx #header_table
 	abx
