@@ -1,4 +1,4 @@
-# Test Sequencer for SWTPC 6809
+# Basic Sequencer for SWTPC 6809
 
 ## Features
 * Recording on four different channels
