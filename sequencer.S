@@ -18,9 +18,9 @@ pcrlf	equ $F80E
 seq_io_base equ $E020
 
 seq_data_base equ $4000
-seq_tempo_adr equ $4040
-seq_record_adr equ $4042
-seq_temp_tempo_adr equ $4044
+seq_tempo equ $4040	; The tempo value
+seq_record equ $4042	; The address in the data of the track being recorded
+seq_temp_tempo equ $4044 ; The temporary tempo storing the values as a tempo is being entered
 
 
 ; =========================
@@ -46,7 +46,7 @@ seq_temp_tempo_adr equ $4044
 
 	; Set default tempo
 	ldd #5
-	std seq_tempo_adr
+	std seq_tempo
 
 redraw	jsr drawscreen
 poll	jsr [inchek]
@@ -89,7 +89,7 @@ tempo
 
 	; Clear temporary tempo
 	ldd #0
-	std seq_temp_tempo_adr
+	std seq_temp_tempo
 
 t_waitc	jsr [inchek]
 	beq t_waitc
@@ -106,7 +106,7 @@ t_waitc	jsr [inchek]
 	pshs a
 
 	; Multiply existing temporary tempo by 10 and add entered number
-	ldy #seq_temp_tempo_adr
+	ldy #seq_temp_tempo
 	ldb 1,y
 	lda #10
 	mul
@@ -120,8 +120,8 @@ t_waitc	jsr [inchek]
 	bgt t_write
 
 	bra t_waitc
-t_write	ldd seq_temp_tempo_adr
-	std seq_tempo_adr
+t_write	ldd seq_temp_tempo
+	std seq_tempo
 
 	ldx #tempo_set_msg
 	jsr [pdata]
@@ -162,7 +162,7 @@ rc_wfch	jsr [inchek]
 	mul
 	ldx #seq_data_base
 	abx
-	stx seq_record_adr
+	stx seq_record
 
 	; Clear the existing channel of data
 	ldb #0x10
@@ -190,7 +190,7 @@ rc_loop	lda #2
 	; Delay at start to see if press is entered
 	jsr delay_tempo
 	
-	ldx seq_record_adr
+	ldx seq_record
 	puls b
 	pshs b
 	abx
@@ -275,6 +275,13 @@ rc_next	puls a
 	lbra rc_run
 	
 rc_done	puls a
+
+	ldx #seq_io_base
+	clra
+	clrb
+	std ,x
+	std 2,x
+
 	rts
 
 ; =========================
@@ -335,6 +342,13 @@ pb_no_input
 	bra pb_run
 	
 pb_done	puls a
+
+	ldx #seq_io_base
+	clra
+	clrb
+	std ,x
+	std 2,x
+
 	rts
 
 
@@ -531,7 +545,7 @@ d_cyc
 	bne d_cyc
 
 	abx
-	cmpx seq_tempo_adr
+	cmpx seq_tempo
 	bne d_ms
 	puls x
 	rts
@@ -540,7 +554,7 @@ d_cyc
 ; Play Beat Subroutine
 ; =========================
 ; The a register should contain the offset
-; The b register is saved
+; The b,x register is saved
 play_beat
 	pshs x,b
 

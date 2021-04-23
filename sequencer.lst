@@ -18,9 +18,9 @@ F80E                  pcrlf   equ $F80E
 E020                  seq_io_base equ $E020
                       
 4000                  seq_data_base equ $4000
-4040                  seq_tempo_adr equ $4040
-4042                  seq_record_adr equ $4042
-4044                  seq_temp_tempo_adr equ $4044
+4040                  seq_tempo equ $4040     ; The tempo value
+4042                  seq_record equ $4042    ; The address in the data of the track being recorded
+4044                  seq_temp_tempo equ $4044 ; The temporary tempo storing the values as a tempo is being entered
                       
                       
                       ; =========================
@@ -35,20 +35,20 @@ E020                  seq_io_base equ $E020
 8000  AD9FF80E                jsr [pcrlf]
                       
 8004  861E                    lda #30
-8006  BD82F2                  jsr printspaces
-8009  8E8341                  ldx #banner
+8006  BD8304                  jsr printspaces
+8009  8E8353                  ldx #banner
 800C  AD9FF80C                jsr [pdata]
                       
 8010  8614                    lda #20
-8012  BD82F2                  jsr printspaces
-8015  8E8359                  ldx #controls
+8012  BD8304                  jsr printspaces
+8015  8E836B                  ldx #controls
 8018  AD9FF80C                jsr [pdata]
                       
                               ; Set default tempo
 801C  CC0005                  ldd #5
-801F  FD4040                  std seq_tempo_adr
+801F  FD4040                  std seq_tempo
                       
-8022  BD8215          redraw  jsr drawscreen
+8022  BD8227          redraw  jsr drawscreen
 8025  AD9FF808        poll    jsr [inchek]
 8029  26FA                    bne poll
                       
@@ -63,7 +63,7 @@ E020                  seq_io_base equ $E020
 803D  270C                    beq do_tempo
 803F  20E4                    bra poll
 8041                  do_playback
-8041  BD81B9                  jsr playback
+8041  BD81C2                  jsr playback
 8044  20DC                    bra redraw
 8046                  do_record
 8046  BD80DA                  jsr record
@@ -84,12 +84,12 @@ E020                  seq_io_base equ $E020
                       ; Tempo subroutine
                       ; =========================
 807E                  tempo
-807E  8E8395                  ldx #tempo_prompt_msg
+807E  8E83A7                  ldx #tempo_prompt_msg
 8081  AD9FF80C                jsr [pdata]
                       
                               ; Clear temporary tempo
 8085  CC0000                  ldd #0
-8088  FD4044                  std seq_temp_tempo_adr
+8088  FD4044                  std seq_temp_tempo
                       
 808B  AD9FF808        t_waitc jsr [inchek]
 808F  27FA                    beq t_waitc
@@ -106,7 +106,7 @@ E020                  seq_io_base equ $E020
 80A3  3402                    pshs a
                       
                               ; Multiply existing temporary tempo by 10 and add entered number
-80A5  108E4044                ldy #seq_temp_tempo_adr
+80A5  108E4044                ldy #seq_temp_tempo
 80A9  E621                    ldb 1,y
 80AB  860A                    lda #10
 80AD  3D                      mul
@@ -120,10 +120,10 @@ E020                  seq_io_base equ $E020
 80B8  2E02                    bgt t_write
                       
 80BA  20CF                    bra t_waitc
-80BC  FC4044          t_write ldd seq_temp_tempo_adr
-80BF  FD4040                  std seq_tempo_adr
+80BC  FC4044          t_write ldd seq_temp_tempo
+80BF  FD4040                  std seq_tempo
                       
-80C2  8E83BE                  ldx #tempo_set_msg
+80C2  8E83D0                  ldx #tempo_set_msg
 80C5  AD9FF80C                jsr [pdata]
 80C9  AD9FF80E        t_done  jsr [pcrlf]
 80CD  39                      rts
@@ -138,7 +138,7 @@ E020                  seq_io_base equ $E020
 80D7  160089                  lbra rc_write
 80DA                  record
                               ; Prompt for channel
-80DA  8E8390                  ldx #channel_prompt_msg
+80DA  8E83A2                  ldx #channel_prompt_msg
 80DD  AD9FF80C                jsr [pdata]
                       
                               ; Get channel to record
@@ -162,7 +162,7 @@ E020                  seq_io_base equ $E020
 8101  3D                      mul
 8102  8E4000                  ldx #seq_data_base
 8105  3A                      abx
-8106  BF4042                  stx seq_record_adr
+8106  BF4042                  stx seq_record
                       
                               ; Clear the existing channel of data
 8109  C610                    ldb #0x10
@@ -172,10 +172,10 @@ E020                  seq_io_base equ $E020
 810F  26FB                    bne rc_clr
                       
                               ; Print rfecord message
-8111  8E838B                  ldx #record_msg
+8111  8E839D                  ldx #record_msg
 8114  AD9FF80C                jsr [pdata]
 8118  8606                    lda #6
-811A  BD82F2                  jsr printspaces
+811A  BD8304                  jsr printspaces
                       
 811D  867C            rc_run  lda #'|'
 811F  AD9FF80A                jsr [outch]
@@ -185,12 +185,12 @@ E020                  seq_io_base equ $E020
 8125  3402                    pshs a
                       
 8127  8602            rc_loop lda #2
-8129  BD82F2                  jsr printspaces
+8129  BD8304                  jsr printspaces
                       
                               ; Delay at start to see if press is entered
-812C  BD8309                  jsr delay_tempo
+812C  BD831B                  jsr delay_tempo
                               
-812F  BE4042                  ldx seq_record_adr
+812F  BE4042                  ldx seq_record
 8132  3504                    puls b
 8134  3404                    pshs b
 8136  3A                      abx
@@ -227,12 +227,12 @@ E020                  seq_io_base equ $E020
 8169  1F89                    tfr a,b
                       
                               ; Play current beat
-816B  BD8322                  jsr play_beat
+816B  BD8334                  jsr play_beat
 816E  2021                    bra rc_cont
 8170                  rc_no_input
 8170  3502                    puls a
 8172  3402                    pshs a
-8174  BD8322                  jsr play_beat
+8174  BD8334                  jsr play_beat
                       
                               ; Print previous value on no input
 8177  E684                    ldb ,x
@@ -270,357 +270,371 @@ E020                  seq_io_base equ $E020
                               ; If at end of line, start a new one
 81A8  AD9FF80E                jsr [pcrlf]
 81AC  860F                    lda #15
-81AE  BD82F2                  jsr printspaces
+81AE  BD8304                  jsr printspaces
 81B1  3502                    puls a
 81B3  16FF67                  lbra rc_run
                               
 81B6  3502            rc_done puls a
-81B8  39                      rts
+                      
+81B8  8EE020                  ldx #seq_io_base
+81BB  4F                      clra
+81BC  5F                      clrb
+81BD  ED84                    std ,x
+81BF  ED02                    std 2,x
+                      
+81C1  39                      rts
                       
                       ; =========================
                       ; Playback subroutine
                       ; =========================
-81B9                  playback
+81C2                  playback
                               ; Print playback symbol
-81B9  8E8382                  ldx #playback_msg
-81BC  AD9FF80C                jsr [pdata]
-81C0  8607                    lda #7
-81C2  BD82F2                  jsr printspaces
+81C2  8E8394                  ldx #playback_msg
+81C5  AD9FF80C                jsr [pdata]
+81C9  8607                    lda #7
+81CB  BD8304                  jsr printspaces
                       
-81C5  867C            pb_run  lda #'|'
-81C7  AD9FF80A                jsr [outch]
+81CE  867C            pb_run  lda #'|'
+81D0  AD9FF80A                jsr [outch]
                               
-81CB  4F                      clra
-81CC  5F                      clrb
-81CD  3402                    pshs a
+81D4  4F                      clra
+81D5  5F                      clrb
+81D6  3402                    pshs a
                       
-81CF  BD8322          pb_loop jsr play_beat
+81D8  BD8334          pb_loop jsr play_beat
                       
                               ; Print tick
-81D2  8602                    lda #2
-81D4  BD82F2                  jsr printspaces
-81D7  862E                    lda #'.'
-81D9  AD9FF80A                jsr [outch]
+81DB  8602                    lda #2
+81DD  BD8304                  jsr printspaces
+81E0  862E                    lda #'.'
+81E2  AD9FF80A                jsr [outch]
                               
                               ; Print the end mark if at end of line
-81DD  C10F                    cmpb #15
-81DF  2606                    bne pb_del
-81E1  867C                    lda #'|'
-81E3  AD9FF80A                jsr [outch]
+81E6  C10F                    cmpb #15
+81E8  2606                    bne pb_del
+81EA  867C                    lda #'|'
+81EC  AD9FF80A                jsr [outch]
                       
                               ; Delay
-81E7  BD8309          pb_del  jsr delay_tempo
+81F0  BD831B          pb_del  jsr delay_tempo
                       
                               ; Check for input after delay
-81EA  AD9FF808        pb_poll jsr [inchek]
-81EE  270A                    beq pb_no_input
-81F0  AD9FF804                jsr [inch]
-81F4  8173                    cmpa #'s'
-81F6  271A                    beq pb_done
-81F8  20F0                    bra pb_poll
-81FA                  pb_no_input
+81F3  AD9FF808        pb_poll jsr [inchek]
+81F7  270A                    beq pb_no_input
+81F9  AD9FF804                jsr [inch]
+81FD  8173                    cmpa #'s'
+81FF  271A                    beq pb_done
+8201  20F0                    bra pb_poll
+8203                  pb_no_input
                               ; Increment beat counter
-81FA  3502                    puls a
-81FC  4C                      inca
-81FD  3402                    pshs a
-81FF  1F89                    tfr a,b
-8201  8110                    cmpa #16
-8203  2DCA                    blt pb_loop
+8203  3502                    puls a
+8205  4C                      inca
+8206  3402                    pshs a
+8208  1F89                    tfr a,b
+820A  8110                    cmpa #16
+820C  2DCA                    blt pb_loop
                       
                               ; If at end of line, start a new one
-8205  AD9FF80E                jsr [pcrlf]
-8209  860F                    lda #15
-820B  BD82F2                  jsr printspaces
-820E  3502                    puls a
-8210  20B3                    bra pb_run
+820E  AD9FF80E                jsr [pcrlf]
+8212  860F                    lda #15
+8214  BD8304                  jsr printspaces
+8217  3502                    puls a
+8219  20B3                    bra pb_run
                               
-8212  3502            pb_done puls a
-8214  39                      rts
+821B  3502            pb_done puls a
+                      
+821D  8EE020                  ldx #seq_io_base
+8220  4F                      clra
+8221  5F                      clrb
+8222  ED84                    std ,x
+8224  ED02                    std 2,x
+                      
+8226  39                      rts
                       
                       
                       ; =========================
                       ; Draw Screen subroutine
                       ; =========================
                       ; Draws the screen displaying the sequence
-8215                  drawscreen
-8215  AD9FF80E                jsr [pcrlf]
-8219  4F                      clra
-821A  3402                    pshs a
+8227                  drawscreen
+8227  AD9FF80E                jsr [pcrlf]
+822B  4F                      clra
+822C  3402                    pshs a
                               
-821C                  ds_drawrow
+822E                  ds_drawrow
                               ; Print out the pre-padding
-821C  860A                    lda #10 ; Pre-padding
-821E  BD82F2                  jsr printspaces
+822E  860A                    lda #10 ; Pre-padding
+8230  BD8304                  jsr printspaces
                       
                               ; Print row title
-8221  3504                    puls b
-8223  3404                    pshs b
-8225  58                      lslb
-8226  8E83CB                  ldx #header_table
-8229  3A                      abx
-822A  AE84                    ldx ,x
-822C  AD9FF80C                jsr [pdata]
+8233  3504                    puls b
+8235  3404                    pshs b
+8237  58                      lslb
+8238  8E83DD                  ldx #header_table
+823B  3A                      abx
+823C  AE84                    ldx ,x
+823E  AD9FF80C                jsr [pdata]
                       
                               ; Print space
-8230  8620                    lda #32
-8232  AD9FF80A                jsr [outch]
+8242  8620                    lda #32
+8244  AD9FF80A                jsr [outch]
                       
                               ; Print table right border
-8236  C600                    ldb #0
-8238                  ds_draw_border
-8238  3502                    puls a
-823A  3402                    pshs a
-823C  8100                    cmpa #0
-823E  2702                    beq ds_fr_c
-8240  861D                    lda #0x1D  ; If A is not the first row, set to '|' (0x7C), else set to 0x5C
-8242  8B5F            ds_fr_c adda #0x5F
-8244  AD9FF80A                jsr [outch]
-8248  C101                    cmpb #1
-824A  10270093                lbeq ds_loop
+8248  C600                    ldb #0
+824A                  ds_draw_border
+824A  3502                    puls a
+824C  3402                    pshs a
+824E  8100                    cmpa #0
+8250  2702                    beq ds_fr_c
+8252  861D                    lda #0x1D  ; If A is not the first row, set to '|' (0x7C), else set to 0x5C
+8254  8B5F            ds_fr_c adda #0x5F
+8256  AD9FF80A                jsr [outch]
+825A  C101                    cmpb #1
+825C  10270093                lbeq ds_loop
                       
                               ; Print contents of table
-824E  3502                    puls a
-8250  3402                    pshs a
-8252  8100                    cmpa #0
-8254  2748                    beq ds_top_row
-8256  8101                    cmpa #1
-8258  2759                    beq ds_beats_row
-825A  8102                    cmpa #2
-825C  273C                    beq ds_mid_row
-825E  8107                    cmpa #7
-8260  2738                    beq ds_mid_row
+8260  3502                    puls a
+8262  3402                    pshs a
+8264  8100                    cmpa #0
+8266  2748                    beq ds_top_row
+8268  8101                    cmpa #1
+826A  2759                    beq ds_beats_row
+826C  8102                    cmpa #2
+826E  273C                    beq ds_mid_row
+8270  8107                    cmpa #7
+8272  2738                    beq ds_mid_row
                       
                               ; Else channel row
                               ; Load base address of sequence
-8262  3502                    puls a
-8264  3402                    pshs a
-8266  8003                    suba #3
-8268  C610                    ldb #0x10
-826A  3D                      mul
-826B  8E4000                  ldx #seq_data_base
-826E  3A                      abx
+8274  3502                    puls a
+8276  3402                    pshs a
+8278  8003                    suba #3
+827A  C610                    ldb #0x10
+827C  3D                      mul
+827D  8E4000                  ldx #seq_data_base
+8280  3A                      abx
                               
-826F  4F                      clra
-8270  3402                    pshs a
-8272                  ds_draw_channel_beat
-8272  8602                    lda #2
-8274  BD82F2                  jsr printspaces
-8277  E680                    ldb ,x+
-8279  8601                    lda #1
+8281  4F                      clra
+8282  3402                    pshs a
+8284                  ds_draw_channel_beat
+8284  8602                    lda #2
+8286  BD8304                  jsr printspaces
+8289  E680                    ldb ,x+
+828B  8601                    lda #1
                       
-827B                  ds_channel_check_bit
-827B  C501                    bitb #1
-827D  2608                    bne ds_print_channel_val
-827F  54                      lsrb
-8280  4C                      inca
-8281  8109                    cmpa #9
-8283  26F6                    bne ds_channel_check_bit
-8285  86F0                    lda #-16  ; When 48 is added it will turn into a space
+828D                  ds_channel_check_bit
+828D  C501                    bitb #1
+828F  2608                    bne ds_print_channel_val
+8291  54                      lsrb
+8292  4C                      inca
+8293  8109                    cmpa #9
+8295  26F6                    bne ds_channel_check_bit
+8297  86F0                    lda #-16  ; When 48 is added it will turn into a space
                       
-8287                  ds_print_channel_val
-8287  8B30                    adda #48
-8289  AD9FF80A                jsr [outch]
+8299                  ds_print_channel_val
+8299  8B30                    adda #48
+829B  AD9FF80A                jsr [outch]
                       
-828D  3502                    puls a
-828F  4C                      inca
-8290  3402                    pshs a
-8292  8110                    cmpa #16
+829F  3502                    puls a
+82A1  4C                      inca
+82A2  3402                    pshs a
+82A4  8110                    cmpa #16
                       
-8294  26DC                    bne ds_draw_channel_beat
-8296  3502                    puls a
+82A6  26DC                    bne ds_draw_channel_beat
+82A8  3502                    puls a
                       
-8298  2042                    bra ds_border_close
+82AA  2042                    bra ds_border_close
                       
                       
-829A                  ds_mid_row
-829A  862D                    lda #'-'
-829C  2002                    bra ds_draw_row
-829E                  ds_top_row
-829E  865F                    lda #'_'
-82A0                  ds_draw_row
-82A0  3402                    pshs a
-82A2  C630                    ldb #0x30       ; Row Width: 48
-82A4  3502            ds_dr_l puls a          ; Print variable on stack b times
-82A6  3402                    pshs a
-82A8  AD9FF80A                jsr [outch]
-82AC  5A                      decb
-82AD  26F5                    bne ds_dr_l
-82AF  3502                    puls a
-82B1  2029                    bra ds_border_close
+82AC                  ds_mid_row
+82AC  862D                    lda #'-'
+82AE  2002                    bra ds_draw_row
+82B0                  ds_top_row
+82B0  865F                    lda #'_'
+82B2                  ds_draw_row
+82B2  3402                    pshs a
+82B4  C630                    ldb #0x30       ; Row Width: 48
+82B6  3502            ds_dr_l puls a          ; Print variable on stack b times
+82B8  3402                    pshs a
+82BA  AD9FF80A                jsr [outch]
+82BE  5A                      decb
+82BF  26F5                    bne ds_dr_l
+82C1  3502                    puls a
+82C3  2029                    bra ds_border_close
                       
-82B3                  ds_beats_row
-82B3  C601                    ldb #1
+82C5                  ds_beats_row
+82C5  C601                    ldb #1
                       
-82B5                  ds_print_beat
+82C7                  ds_print_beat
                               ; Print space
-82B5  8620                    lda #32
-82B7  AD9FF80A                jsr [outch]
+82C7  8620                    lda #32
+82C9  AD9FF80A                jsr [outch]
                       
                               ; Print tens digit, or space
-82BB  8620                    lda #32
-82BD  C10A                    cmpb #10
-82BF  2D02                    blt ds_beat_print_tens
-82C1  8631                    lda #'1'
-82C3                  ds_beat_print_tens
-82C3  AD9FF80A                jsr [outch]
+82CD  8620                    lda #32
+82CF  C10A                    cmpb #10
+82D1  2D02                    blt ds_beat_print_tens
+82D3  8631                    lda #'1'
+82D5                  ds_beat_print_tens
+82D5  AD9FF80A                jsr [outch]
                       
                               ; Print ones digit
-82C7  1F98                    tfr b,a
-82C9  C10A                    cmpb #10
-82CB  2D02                    blt ds_beat_skip_subtract
-82CD  800A                    suba #10
-82CF                  ds_beat_skip_subtract
-82CF  8B30                    adda #48
-82D1  AD9FF80A                jsr [outch]
+82D9  1F98                    tfr b,a
+82DB  C10A                    cmpb #10
+82DD  2D02                    blt ds_beat_skip_subtract
+82DF  800A                    suba #10
+82E1                  ds_beat_skip_subtract
+82E1  8B30                    adda #48
+82E3  AD9FF80A                jsr [outch]
                       
-82D5  5C                      incb
-82D6  C110                    cmpb #16
-82D8  2FDB                    ble ds_print_beat
+82E7  5C                      incb
+82E8  C110                    cmpb #16
+82EA  2FDB                    ble ds_print_beat
                       
-82DA  2000                    bra ds_border_close
+82EC  2000                    bra ds_border_close
                       
                       
                               ; Print table border
-82DC                  ds_border_close
-82DC  C601                    ldb #1
-82DE  16FF57                  lbra ds_draw_border
-82E1                  ds_loop
-82E1  AD9FF80E                jsr [pcrlf]
-82E5  3502                    puls a
-82E7  4C                      inca
+82EE                  ds_border_close
+82EE  C601                    ldb #1
+82F0  16FF57                  lbra ds_draw_border
+82F3                  ds_loop
+82F3  AD9FF80E                jsr [pcrlf]
+82F7  3502                    puls a
+82F9  4C                      inca
                       
-82E8  8108                    cmpa #8
-82EA  2705                    beq ds_done
+82FA  8108                    cmpa #8
+82FC  2705                    beq ds_done
                               
-82EC  3402                    pshs a
-82EE  16FF2B                  lbra ds_drawrow
+82FE  3402                    pshs a
+8300  16FF2B                  lbra ds_drawrow
                       
-82F1  39              ds_done rts
+8303  39              ds_done rts
                       
                       ; =========================
                       ; Print Spaces Subroutine
                       ; =========================
                       ; Prints number of spaces in A register
-82F2                  printspaces
-82F2  3404                    pshs b
-82F4  1F89                    tfr a,b
-82F6  5D              ps_loop tstb
-82F7  270D                    beq ps_done
-82F9  3404                    pshs b
-82FB  8620                    lda #32  ; Load with space
-82FD  AD9FF80A                jsr [outch]
-8301  3504                    puls b
-8303  5A                      decb
-8304  20F0                    bra ps_loop
-8306  3504            ps_done puls b
-8308  39                      rts
+8304                  printspaces
+8304  3404                    pshs b
+8306  1F89                    tfr a,b
+8308  5D              ps_loop tstb
+8309  270D                    beq ps_done
+830B  3404                    pshs b
+830D  8620                    lda #32  ; Load with space
+830F  AD9FF80A                jsr [outch]
+8313  3504                    puls b
+8315  5A                      decb
+8316  20F0                    bra ps_loop
+8318  3504            ps_done puls b
+831A  39                      rts
                       
                       ; =========================
                       ; Delay Subroutine
                       ; =========================
-8309                  delay_tempo
-8309  3410                    pshs x
-830B  1F12                    tfr x,y
-830D  8E0000                  ldx #0
-8310  C601                    ldb #1
-8312  4F              d_ms    clra
-8313                  d_cyc
-8313  4C                      inca
-8314  12                      nop
-8315  814A                    cmpa #74
-8317  26FA                    bne d_cyc
+831B                  delay_tempo
+831B  3410                    pshs x
+831D  1F12                    tfr x,y
+831F  8E0000                  ldx #0
+8322  C601                    ldb #1
+8324  4F              d_ms    clra
+8325                  d_cyc
+8325  4C                      inca
+8326  12                      nop
+8327  814A                    cmpa #74
+8329  26FA                    bne d_cyc
                       
-8319  3A                      abx
-831A  BC4040                  cmpx seq_tempo_adr
-831D  26F3                    bne d_ms
-831F  3510                    puls x
-8321  39                      rts
+832B  3A                      abx
+832C  BC4040                  cmpx seq_tempo
+832F  26F3                    bne d_ms
+8331  3510                    puls x
+8333  39                      rts
                       
                       ; =========================
                       ; Play Beat Subroutine
                       ; =========================
                       ; The a register should contain the offset
-                      ; The b register is saved
-8322                  play_beat
-8322  3414                    pshs x,b
+                      ; The b,x register is saved
+8334                  play_beat
+8334  3414                    pshs x,b
                       
                               ; Setup initial address
-8324  8E4000                  ldx #seq_data_base
-8327  1F89                    tfr a,b
-8329  3A                      abx
-832A  108EE020                ldy #seq_io_base
+8336  8E4000                  ldx #seq_data_base
+8339  1F89                    tfr a,b
+833B  3A                      abx
+833C  108EE020                ldy #seq_io_base
                       
                               ; Set channel count to transfer
-832E  C604                    ldb #4
+8340  C604                    ldb #4
                               
                               ; Write each channel's value for the given beat
-8330  3404            p_b_wch pshs b
-8332  A684                    lda ,x
-8334  A7A0                    sta ,y+
-8336  C610                    ldb #16
-8338  3A                      abx
-8339  3504                    puls b
-833B  5A                      decb
-833C  26F2                    bne p_b_wch
+8342  3404            p_b_wch pshs b
+8344  A684                    lda ,x
+8346  A7A0                    sta ,y+
+8348  C610                    ldb #16
+834A  3A                      abx
+834B  3504                    puls b
+834D  5A                      decb
+834E  26F2                    bne p_b_wch
                       
-833E  3514                    puls x,b
-8340  39                      rts
+8350  3514                    puls x,b
+8352  39                      rts
                       
                       
                       ; =========================
                       ; Data Section
                       ; =========================
                       
-8341  2A2A2A42617369632053657175656E6365722A2A2A0D0A banner  fcc "***Basic Sequencer***\r\n"
-8358  04                      fcb $04
-8359                  controls
-8359  503A20506C6179202D20523A205265636F7264202D20543A2054656D706F202D20533A2053746F70         fcc "P: Play - R: Record - T: Tempo - S: Stop"
-8381  04                      fcb $04
-8382                  playback_msg
-8382  506C61796261636B         fcc "Playback"
-838A  04                      fcb $04
-838B                  record_msg
-838B  3A526563                fcc ":Rec"
-838F  04                      fcb $04
-8390                  channel_prompt_msg
-8390  43683F20                fcc "Ch? "
-8394  04                      fcb $04
-8395                  tempo_prompt_msg
-8395  456E7465722054656D706F20282E20746F20656E642C206F7468657220746F2061626F7274293A20         fcc "Enter Tempo (. to end, other to abort): "
-83BD  04                      fcb $04
-83BE                  tempo_set_msg
-83BE  202D2054656D706F20536574         fcc " - Tempo Set"
-83CA  04                      fcb $04
-83CB                  header_table
-83CB  83DB                    fdb header_blank
-83CD  83E0                    fdb header_beat
-83CF  83DB                    fdb header_blank
-83D1  83E5                    fdb header_ch1
-83D3  83EA                    fdb header_ch2
-83D5  83EF                    fdb header_ch3
-83D7  83F4                    fdb header_ch4
-83D9  83DB                    fdb header_blank
+8353  2A2A2A42617369632053657175656E6365722A2A2A0D0A banner  fcc "***Basic Sequencer***\r\n"
+836A  04                      fcb $04
+836B                  controls
+836B  503A20506C6179202D20523A205265636F7264202D20543A2054656D706F202D20533A2053746F70         fcc "P: Play - R: Record - T: Tempo - S: Stop"
+8393  04                      fcb $04
+8394                  playback_msg
+8394  506C61796261636B         fcc "Playback"
+839C  04                      fcb $04
+839D                  record_msg
+839D  3A526563                fcc ":Rec"
+83A1  04                      fcb $04
+83A2                  channel_prompt_msg
+83A2  43683F20                fcc "Ch? "
+83A6  04                      fcb $04
+83A7                  tempo_prompt_msg
+83A7  456E7465722054656D706F20282E20746F20656E642C206F7468657220746F2061626F7274293A20         fcc "Enter Tempo (. to end, other to abort): "
+83CF  04                      fcb $04
+83D0                  tempo_set_msg
+83D0  202D2054656D706F20536574         fcc " - Tempo Set"
+83DC  04                      fcb $04
+83DD                  header_table
+83DD  83ED                    fdb header_blank
+83DF  83F2                    fdb header_beat
+83E1  83ED                    fdb header_blank
+83E3  83F7                    fdb header_ch1
+83E5  83FC                    fdb header_ch2
+83E7  8401                    fdb header_ch3
+83E9  8406                    fdb header_ch4
+83EB  83ED                    fdb header_blank
                       
-83DB                  header_blank
-83DB  20202020                fcc "    "
-83DF  04                      fcb $04
+83ED                  header_blank
+83ED  20202020                fcc "    "
+83F1  04                      fcb $04
                       
-83E0                  header_beat
-83E0  42656174                fcc "Beat"
-83E4  04                      fcb $04
+83F2                  header_beat
+83F2  42656174                fcc "Beat"
+83F6  04                      fcb $04
                       
-83E5                  header_ch1
-83E5  43682031                fcc "Ch 1"
-83E9  04                      fcb $04
+83F7                  header_ch1
+83F7  43682031                fcc "Ch 1"
+83FB  04                      fcb $04
                       
-83EA                  header_ch2
-83EA  43682032                fcc "Ch 2"
-83EE  04                      fcb $04
+83FC                  header_ch2
+83FC  43682032                fcc "Ch 2"
+8400  04                      fcb $04
                       
-83EF                  header_ch3
-83EF  43682033                fcc "Ch 3"
-83F3  04                      fcb $04
+8401                  header_ch3
+8401  43682033                fcc "Ch 3"
+8405  04                      fcb $04
                       
-83F4                  header_ch4
-83F4  43682034                fcc "Ch 4"
-83F8  04                      fcb $04
+8406                  header_ch4
+8406  43682034                fcc "Ch 4"
+840A  04                      fcb $04
