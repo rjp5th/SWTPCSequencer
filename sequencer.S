@@ -539,17 +539,36 @@ pb_done	; Stop serial interrupts
 ; Draws the screen displaying the sequence
 drawscreen
 	jsr [pcrlf]
-	clra
-	pshs a
+	clrb
+	pshs b
 	
 ds_drawrow
 	; Print out the pre-padding
-	lda #10	; Pre-padding
+	lda #10	; Pre-padding without channel id
+
+	; Channel headers get lower spacing for channel id prefix
+	cmpb #3
+	blt ds_pleadspaces
+	cmpb #7
+	bge ds_pleadspaces
+	lda #7 ; Pre-padding with channel id
+ds_pleadspaces
 	jsr printspaces
 
+	cmpb #3
+	blt ds_printheader
+	cmpb #7
+	bge ds_printheader
+	tfr b,a
+	adda #46
+	jsr [outch]
+	lda #':'
+	jsr [outch]
+	lda #32
+	jsr [outch]
+
+ds_printheader
 	; Print row title
-	puls b
-	pshs b
 	lslb
 	ldx #header_table
 	abx
@@ -681,13 +700,13 @@ ds_border_close
 	lbra ds_draw_border
 ds_loop
 	jsr [pcrlf]
-	puls a
-	inca
+	puls b
+	incb
 
-	cmpa #8
+	cmpb #8
 	beq ds_done
 	
-	pshs a
+	pshs b
 	lbra ds_drawrow
 
 ds_done	rts
@@ -908,7 +927,7 @@ isr_end	puls a,b
 ; =========================
 ; Data Section
 ; =========================
-banner	fcc "***Basic Sequencer***\r\n"
+banner	fcc "***SWTPC Sequencer***\r\n"
 	fcb $04
 controls
 	fcc "P: Play - R: Record - S: Stop - C: Clear Ch - T: Tempo"
@@ -962,17 +981,17 @@ header_beat
 	fcb $04
 
 header_ch1
-	fcc "Ch 1"
+	fcc "Lead"
 	fcb $04
 
 header_ch2
-	fcc "Ch 2"
+	fcc "Bass"
 	fcb $04
 
 header_ch3
-	fcc "Ch 3"
+	fcc "Chrd"
 	fcb $04
 
 header_ch4
-	fcc "Ch 4"
+	fcc "Drum"
 	fcb $04
