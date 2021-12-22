@@ -43,7 +43,7 @@ timer_io_address equ $E008
 ; =========================
 ; Entry
 ; =========================
-	org $F000
+	org $E800
 
 	;fcb 0x10
 	;fcb 0x4a
@@ -808,13 +808,13 @@ serial_set_interrupt
 playback_isr
 	pshs a,b
 
-	jsr [inchek]
+	jsr [inchek]		; Check if interrupt is from key press
 	bne isr_key
 
-	tst timer_io_address+1
+	tst timer_io_address+1	; Check if interrupt is from timer
 	bne isr_timer
 
-	lbra isr_end
+	lbra isr_end		; Else ignore
 
 isr_timer
 	clr timer_io_address+1
