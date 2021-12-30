@@ -30,6 +30,10 @@ seq_cur_beat equ $4047		; The current beat being played
 seq_num_spaces equ $4048	; The number of spaces to print between markings, allows printing extra info in ISR without breaking spacing
 seq_in_delay equ $4049		; If the sequence is currently in the delay loop, if not the isr should not do anything (can sometimes miss keypresses, but the alternative is a race condition)
 seq_timer_fired equ $4050
+realtime_temp_data equ $4051	; Address holding temporary data to be played on during realtime playback
+current_octave equ $4052	; The current octave value to add to keyboard input
+octave_printed equ $4053	; Set if the current octave has been printed for drawing routines
+get_beat_temp equ $4054		; Temporary value for get beat when performing addition calculations
 
 
 ; =========================
@@ -70,6 +74,10 @@ timer_io_address equ $E008
 	; Set default tempo
 	ldd #20
 	std seq_tempo
+
+	; Set default ocatve
+	lda #103
+	sta current_octave
 
 redraw	jsr drawscreen
 poll	jsr [inchek]
@@ -132,7 +140,7 @@ me_wfch	jsr [inchek]
 	beq me_wfch
 	jsr [inch]
 	cmpa #'s'
-	beq me_done
+	lbeq me_done
 	cmpa #'1'
 	blt me_wfch
 	cmpa #'4'
@@ -164,9 +172,9 @@ me_wfch	jsr [inchek]
 	lda #'|'
 	jsr [outch]
 
-	clra
-me_loop	pshs a
-	jsr [inchek]
+	ldy #seq_cur_beat
+	clr ,y
+me_loop	jsr [inchek]
 	bne me_loop
 	jsr [inch]
 
@@ -180,31 +188,30 @@ me_loop	pshs a
 	bne me_loop
 
 	; Play Beat
-	puls a
-	pshs a
+	lda ,y
 	jsr play_beat
 
 	; ===Print tick===
 	lda #2
+	tst octave_printed
+	beq me_printspace
+	clr octave_printed
+	deca
+me_printspace
 	jsr printspaces
 	
 	ldb ,x+
-	lda #1
-me_check_bit
-	bitb #1
-	bne me_print_val
-	lsrb
-	inca
-	cmpa #9
-	bne me_check_bit
-	lda #-2  ; When 48 is added it will turn into a dot
-me_print_val
-	adda #48
+	lda #46
+	tstb
+	beq me_drawch
+	adda #-4
+me_drawch
 	jsr [outch]
 
 	; Increment beat counter
-	puls a
+	lda ,y
 	inca
+	sta ,y
 	cmpa #16
 	blt me_loop
 
@@ -259,18 +266,39 @@ rp_wfch	jsr [inchek]
 	ldx #seq_io_base
 	abx
 
+	; Make y the actual io address,
+	; And x will be the temporary realtime data
+	; Required for drum data or-ing
+	tfr x,y
+	ldx #realtime_temp_data
+
 	; Get input from user
-rp_play	jsr [inchek]
+rp_play	tst octave_printed
+	beq rp_inc
+	clr octave_printed
+	pshs x
+	ldx #oct_change_rp
+	jsr [pdata]
+	puls x
+
+rp_inc	jsr [inchek]
 	beq rp_play
 	jsr [inch]
 	cmpa #'c'
 	beq realtime_playback
+	cmpa #'z'
+	beq rp_done
 
 	; Do processing on input data
 	ldb seq_record_ch
+	clr ,x
 	jsr get_beat
-	bne rp_done
-	
+	bne rp_play
+
+	; Store temporary register into actual memory
+	lda ,x
+	sta ,y
+
 	bra rp_play
 
 rp_done	; Stop any pending playback
@@ -487,17 +515,10 @@ pb_rec	; This code will run when it is recording
 	lda seq_cur_beat
 	ldb a,x
 	
-	lda #1
-pb_check_bit
-	bitb #1
-	bne pb_print_val
-	lsrb
-	inca
-	cmpa #9
-	bne pb_check_bit
-	lda #-2  ; When 48 is added it will turn into a dot
-pb_print_val
-	adda #48
+	lda #46
+	tstb
+	beq pb_drawch
+	adda #-4
 pb_drawch
 	jsr [outch]
 
@@ -620,19 +641,11 @@ ds_draw_channel_beat
 	lda #2
 	jsr printspaces
 	ldb ,x+
-	lda #1
-
-ds_channel_check_bit
-	bitb #1
-	bne ds_print_channel_val
-	lsrb
-	inca
-	cmpa #9
-	bne ds_channel_check_bit
-	lda #-16  ; When 48 is added it will turn into a space
-
+	lda #32
+	tstb
+	beq ds_print_channel_val
+	adda #10
 ds_print_channel_val
-	adda #48
 	jsr [outch]
 
 	puls a
@@ -753,9 +766,9 @@ d_nowait
 ; Play Beat Subroutine
 ; =========================
 ; The a register should contain the offset
-; The b,x register is saved
+; The b,x,y register is saved
 play_beat
-	pshs x,b
+	pshs x,y,b
 
 	; Setup initial address
 	ldx #seq_data_base
@@ -776,7 +789,7 @@ p_b_wch	pshs b
 	decb
 	bne p_b_wch
 
-	puls x,b
+	puls x,y,b
 	rts
 
 ; =========================
@@ -785,12 +798,75 @@ p_b_wch	pshs b
 ; a is the beat to get
 ; b is the channel to record to (used in decoding logic)
 ; x is the address to store data in
-; Returns: cc.z = 0 on failure decoding, cc.z = 1 on successful decoding
+; Saves y,x
+; Returns: cc.z = 0 on no data written, cc.z = 1 on data written
 get_beat
+	pshs y
 	cmpa #'.'
 	beq gb_clrv
 	cmpa #32
 	beq gb_done
+	cmpb #4		; If on drum channel, do different decoding
+	beq gb_drum
+
+	; Check for octave lookup
+	cmpa #'1'
+	blt gb_decode_key_seq
+	cmpa #'4'
+	bgt gb_decode_key_seq
+	; Set octave
+	
+	; Print octave
+	jsr [outch]
+	ldb #1
+	stb octave_printed
+
+	suba #49	; Convert octave to value 0-3
+
+	; Do octave conversion math
+	ldb #51
+	mul
+	incb
+	stb current_octave
+
+	clra
+	bra gb_done
+
+gb_decode_key_seq
+	; Try lookup key
+
+	; Load y with the keyboard_seq lookup string
+	; Search through y until either character is found or $04 is reached
+	ldy #keyboard_sequence
+	; b register contains value at end of index string (when search is finished)
+	ldb #4
+gb_lookup_key_loop
+	cmpb ,y
+	beq gb_done
+	cmpa ,y+
+	bne gb_lookup_key_loop
+	
+	tfr y,d
+	subd keyboard_seq_offset
+
+	; b now contains the # of half-steps up from A
+	tfr b,a
+	; Divide by 4
+	lsra
+	lsra
+	sta get_beat_temp
+
+	; Also multiply by 4
+	lslb
+	lslb
+	; Add the val/4 + val*4
+	addb get_beat_temp
+	; Add octave offset
+	addb current_octave
+
+	bra gb_write
+
+gb_drum ; Decode Drum Data
 	cmpa #'1'
 	blt gb_done
 	cmpa #'8'
@@ -801,9 +877,13 @@ get_beat
 	suba #48
 	ldb #1
 gb_conv deca
-	beq gb_write
+	beq gb_or_data
 	lslb
 	bra gb_conv
+gb_or_data
+	orb ,x
+	bra gb_write
+
 gb_clrv ; Create a value to clear when writing to memory
 	clrb
 gb_write
@@ -812,7 +892,8 @@ gb_write
 
 	; Dirty hack to make it return success on either space or successful decoding
 	lda #32
-gb_done	cmpa #32
+gb_done	puls y
+	cmpa #32
 	rts
 
 ; =========================
@@ -957,7 +1038,7 @@ realtime_ch_prompt_msg
 	fcc "Enter Channel to Play (other to abort): "
 	fcb $04
 realtime_entry_msg
-	fcc "\n\rPress Keys to Play... (c to change channel, other to abort)\n\r"
+	fcc "\r\nPress Keys to Play... (c to change channel, z to abort)\r\n"
 	fcb $04
 tempo_set_msg
 	fcc " - Tempo Set"
@@ -995,3 +1076,14 @@ header_ch3
 header_ch4
 	fcc "Drum"
 	fcb $04
+oct_change_rp
+	fcc " Oct\r\n"
+	fcb $04
+keyboard_sequence
+	fcc "awsedftgyhujkolp;'"
+	fcb $04
+keyboard_seq_offset
+	; Keyboard sequence address offset in big endian
+	; This needs to have 2 subtracted so when the address is subtracted it reports the right number
+	; Since it starts at C, and A is the base for CV conversion, it needs to shift it by 3 half-steps, minus one because of post-indexing in the loop
+	fdb (keyboard_sequence-2)
