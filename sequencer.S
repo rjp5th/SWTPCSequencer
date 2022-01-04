@@ -13,6 +13,19 @@ pdata	equ $F80C
 pcrlf	equ $F80E
 
 ; =========================
+; Key Bindings
+; =========================
+playback_key	equ 'm'
+record_key	equ 'n'
+stop_key	equ 'z'
+clear_key	equ 'c'
+tempo_key	equ 'x'
+realtime_pb_key	equ 'b'
+man_entry_key	equ 'v'
+change_ch_key	equ 'c'
+clear_note_key	equ '.'
+
+; =========================
 ; Sequencer Addresses
 ; =========================
 seq_io_base equ $E020
@@ -51,6 +64,14 @@ timer_io_address equ $E008
 
 	;fcb 0x10
 	;fcb 0x4a
+	
+	; Set default tempo
+	ldd #20
+	std seq_tempo
+
+	; Set default ocatve
+	lda #103
+	sta current_octave
 
 	; Print banner
 	jsr [pcrlf]
@@ -60,7 +81,7 @@ timer_io_address equ $E008
 	ldx #banner
 	jsr [pdata]
 
-	; Print Controls
+	; Print Controls	
 	lda #13
 	jsr printspaces
 	ldx #controls
@@ -71,14 +92,6 @@ timer_io_address equ $E008
 	ldx #controls2
 	jsr [pdata]
 
-	; Set default tempo
-	ldd #20
-	std seq_tempo
-
-	; Set default ocatve
-	lda #103
-	sta current_octave
-
 redraw	jsr drawscreen
 poll	jsr [inchek]
 	bne poll
@@ -86,17 +99,17 @@ poll	jsr [inchek]
 	jsr [inch]
 	cmpa #'f'
 	beq crashme
-	cmpa #'p'
+	cmpa #playback_key
 	beq do_playback
-	cmpa #'r'
+	cmpa #record_key
 	beq do_record
-	cmpa #'t'
+	cmpa #tempo_key
 	beq do_tempo
-	cmpa #'c'
+	cmpa #clear_key
 	beq do_clear
-	cmpa #'d'
+	cmpa #realtime_pb_key
 	beq do_realtime_playback
-	cmpa #'m'
+	cmpa #man_entry_key
 	beq do_manual_entry
 
 	bra poll
@@ -131,6 +144,9 @@ cm_msg	fcc "ManCrash"
 ; Manual Entry subroutine
 ; =========================
 manual_entry
+	; Set initial state
+	clr octave_printed
+
 	; Prompt for channel
 	ldx #channel_prompt_msg
 	jsr [pdata]
@@ -139,7 +155,7 @@ manual_entry
 me_wfch	jsr [inchek]
 	beq me_wfch
 	jsr [inch]
-	cmpa #'s'
+	cmpa #stop_key
 	lbeq me_done
 	cmpa #'1'
 	blt me_wfch
@@ -172,6 +188,10 @@ me_wfch	jsr [inchek]
 	lda #'|'
 	jsr [outch]
 
+	; Set the default number of spaces to print between marks
+	lda #2
+	sta seq_num_spaces
+
 	ldy #seq_cur_beat
 	clr ,y
 me_loop	jsr [inchek]
@@ -179,7 +199,7 @@ me_loop	jsr [inchek]
 	jsr [inch]
 
 	; Check for stop
-	cmpa #'s'
+	cmpa #stop_key
 	beq me_done
 
 	; Do input processing
@@ -192,13 +212,13 @@ me_loop	jsr [inchek]
 	jsr play_beat
 
 	; ===Print tick===
+	lda seq_num_spaces
+	tsta
+	bpl me_pspa
+	clra
+me_pspa	jsr printspaces
 	lda #2
-	tst octave_printed
-	beq me_printspace
-	clr octave_printed
-	deca
-me_printspace
-	jsr printspaces
+	sta seq_num_spaces
 	
 	ldb ,x+
 	lda #46
@@ -234,6 +254,9 @@ me_done	; Stop any notes being played
 ; Realtime Playback subroutine
 ; =========================
 realtime_playback
+	; Set initial state
+	clr octave_printed
+
 	; Clear any pending played notes (when called internally)
 	ldx #seq_io_base
 	clra
@@ -284,9 +307,9 @@ rp_play	tst octave_printed
 rp_inc	jsr [inchek]
 	beq rp_play
 	jsr [inch]
-	cmpa #'c'
+	cmpa #change_ch_key
 	beq realtime_playback
-	cmpa #'z'
+	cmpa #stop_key
 	beq rp_done
 
 	; Do processing on input data
@@ -407,7 +430,7 @@ record
 rc_wfch	jsr [inchek]
 	beq rc_wfch
 	jsr [inch]
-	cmpa #'s'
+	cmpa #stop_key
 	beq rc_quit
 	cmpa #'1'
 	blt rc_wfch
@@ -498,7 +521,10 @@ pb_wait	lda seq_record_ch
 
 	; Print number of spaces required, then reset the value
 	lda seq_num_spaces
-	jsr printspaces
+	tsta
+	bpl pb_pspa
+	clra
+pb_pspa	jsr printspaces
 	lda #2
 	sta seq_num_spaces
 	
@@ -802,7 +828,7 @@ p_b_wch	pshs b
 ; Returns: cc.z = 0 on no data written, cc.z = 1 on data written
 get_beat
 	pshs y
-	cmpa #'.'
+	cmpa #clear_note_key
 	beq gb_clrv
 	cmpa #32
 	beq gb_done
@@ -818,6 +844,9 @@ get_beat
 	
 	; Print octave
 	jsr [outch]
+
+	; Update state for octave input
+	dec seq_num_spaces
 	ldb #1
 	stb octave_printed
 
@@ -929,11 +958,11 @@ isr_key	jsr [inch]
 	beq isr_end
 
 	; Process universal keypresses
-	cmpa #'s'
+	cmpa #stop_key
 	beq isr_stop_playback
-	cmpa #'p'
+	cmpa #playback_key
 	beq isr_do_playback
-	cmpa #'r'
+	cmpa #record_key
 	beq isr_do_record
 
 	; Process keypresses depending on recording/playback/expecting channel data
@@ -1011,10 +1040,10 @@ isr_end	puls a,b
 banner	fcc "***SWTPC Sequencer***\r\n"
 	fcb $04
 controls
-	fcc "P: Play - R: Record - S: Stop - C: Clear Ch - T: Tempo"
+	fcc "M: Play - N: Record - Z: Stop - C: Clear Ch - X: Tempo"
 	fcb $04
 controls2
-	fcc "D: Direct Playback - M: Manual Entry"
+	fcc "B: Direct Playback - V: Manual Entry"
 	fcb $04
 playback_msg
 	fcc "Playback"
