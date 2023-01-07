@@ -15,21 +15,26 @@ pcrlf	equ $F80E
 ; =========================
 ; Key Bindings
 ; =========================
-playback_key	equ 'm'
-record_key	equ 'n'
-stop_key	equ 'z'
-clear_key	equ 'c'
-tempo_key	equ 'x'
-realtime_pb_key	equ 'b'
-man_entry_key	equ 'v'
-change_ch_key	equ 'c'
+playback_key	equ 'M'
+record_key	equ 'N'
+stop_key	equ 'Z'
+clear_key	equ 'C'
+tempo_key	equ 'X'
+realtime_pb_key	equ 'B'
+man_entry_key	equ 'V'
+change_ch_key	equ 'C'
 clear_note_key	equ '.'
 
 ; =========================
 ; Sequencer Addresses
 ; =========================
-seq_io_base equ $E020
+seq_dac_base equ $E020
+seq_drum_addr equ $E024
+seq_gate_addr equ $E028
 
+; =========================
+; Memory Addresses
+; =========================
 seq_data_base equ $4000		; The base of channel data (4 0x10-length byte arrays for each channel)
 seq_tempo equ $4040		; The tempo value
 seq_record equ $4042		; The address in the data of the track being recorded
@@ -40,22 +45,19 @@ seq_record_ch equ $4046		; The channel to record sequences to
 				; 0xFF: Playback stopped, should return to main menu
 				; 0xFE: Playback paused, pending channel input from user to specify which channel to record to
 seq_cur_beat equ $4047		; The current beat being played
-seq_num_spaces equ $4048	; The number of spaces to print between markings, allows printing extra info in ISR without breaking spacing
-seq_in_delay equ $4049		; If the sequence is currently in the delay loop, if not the isr should not do anything (can sometimes miss keypresses, but the alternative is a race condition)
-seq_timer_fired equ $4050
-realtime_temp_data equ $4051	; Address holding temporary data to be played on during realtime playback
-current_octave equ $4052	; The current octave value to add to keyboard input
-octave_printed equ $4053	; Set if the current octave has been printed for drawing routines
-get_beat_temp equ $4054		; Temporary value for get beat when performing addition calculations
+seq_num_spaces equ $4048	; The number of spaces to print between markings, allows printing extra info between notes without breaking spacing
+realtime_temp_data equ $4049	; Address holding temporary data to be played on during realtime playback
+current_octave equ $404a	; The current octave value to add to keyboard input
+octave_printed equ $404b	; Set if the current octave has been printed for drawing routines
+get_beat_temp equ $404c		; Temporary value for get beat when performing addition calculations
+play_beat_temp	equ $404d	; Temporary value for play beat when performing additional calculations
 
 
 ; =========================
-; Serial Addresses/Config
+; Default Values
 ; =========================
-serial_io_address equ $E004
-serial_base_config equ $11
-firq_jump_address equ $dfc6
-timer_io_address equ $E008
+default_tempo equ 500
+gate_time equ 20
 
 ; =========================
 ; Entry
@@ -66,12 +68,20 @@ timer_io_address equ $E008
 	;fcb 0x4a
 	
 	; Set default tempo
-	ldd #20
+	ldd #default_tempo
 	std seq_tempo
 
 	; Set default ocatve
 	lda #103
 	sta current_octave
+
+	; Clear the data memory of existing data
+	ldx #seq_data_base
+	ldb #0x40
+	clra
+data_cl	sta ,x+
+	decb
+	bne data_cl
 
 	; Print banner
 	jsr [pcrlf]
@@ -82,6 +92,7 @@ timer_io_address equ $E008
 	jsr [pdata]
 
 	; Print Controls	
+redraw	jsr [pcrlf]
 	lda #13
 	jsr printspaces
 	ldx #controls
@@ -92,13 +103,13 @@ timer_io_address equ $E008
 	ldx #controls2
 	jsr [pdata]
 
-redraw	jsr drawscreen
+	jsr drawscreen
 poll	jsr [inchek]
-	bne poll
+	beq poll
 
 	jsr [inch]
-	cmpa #'f'
-	beq crashme
+;	cmpa #'f'
+;	beq crashme
 	cmpa #playback_key
 	beq do_playback
 	cmpa #record_key
@@ -131,14 +142,14 @@ do_realtime_playback
 do_manual_entry
 	jsr manual_entry
 	bra redraw
-crashme
-	ldx #cm_msg
-	jsr [pdata]
-crashmenow
-	fcb $10
-	fcb $45
-cm_msg	fcc "ManCrash"
-	fcb $4
+;crashme
+;	ldx #cm_msg
+;	jsr [pdata]
+;crashmenow
+;	fcb $10
+;	fcb $45
+;cm_msg	fcc "ManCrash"
+;	fcb $4
 
 ; =========================
 ; Manual Entry subroutine
@@ -195,7 +206,7 @@ me_wfch	jsr [inchek]
 	ldy #seq_cur_beat
 	clr ,y
 me_loop	jsr [inchek]
-	bne me_loop
+	beq me_loop
 	jsr [inch]
 
 	; Check for stop
@@ -241,11 +252,7 @@ me_drawch
 	jsr [pcrlf]
 
 me_done	; Stop any notes being played
-	ldx #seq_io_base
-	clra
-	clrb
-	std ,x
-	std 2,x
+	jsr stop_pb
 
 	rts
 
@@ -258,11 +265,7 @@ realtime_playback
 	clr octave_printed
 
 	; Clear any pending played notes (when called internally)
-	ldx #seq_io_base
-	clra
-	clrb
-	std ,x
-	std 2,x
+	jsr stop_pb
 
 	ldx #realtime_ch_prompt_msg
 	jsr [pdata]
@@ -286,13 +289,18 @@ rp_wfch	jsr [inchek]
 	subb #48
 	stb seq_record_ch
 	decb
-	ldx #seq_io_base
+	ldx #seq_dac_base
 	abx
+
+	; Check if drum channel, so its record address can be overidden
+	cmpb #3
+	bne rp_prep
+	ldx #seq_drum_addr
 
 	; Make y the actual io address,
 	; And x will be the temporary realtime data
 	; Required for drum data or-ing
-	tfr x,y
+rp_prep	tfr x,y
 	ldx #realtime_temp_data
 
 	; Get input from user
@@ -325,11 +333,7 @@ rp_inc	jsr [inchek]
 	bra rp_play
 
 rp_done	; Stop any pending playback
-	ldx #seq_io_base
-	clra
-	clrb
-	std ,x
-	std 2,x
+	jsr stop_pb
 
 	rts
 
@@ -346,9 +350,10 @@ tempo
 
 t_waitc	jsr [inchek]
 	beq t_waitc
-	jsr [inche]
-	cmpa #'.'
-	beq t_write
+	jsr [inch]
+	cmpa #$0D
+	beq t_check
+	jsr [outch]
 	cmpa #'0'
 	blt t_done
 	cmpa #'9'
@@ -370,11 +375,16 @@ t_waitc	jsr [inchek]
 
 	; If the number is too big to fit into b before multiplication, write it (gives range of 2559)
 	cmpx #255
-	bgt t_write
+	bgt t_check
 
 	bra t_waitc
-t_write	ldd seq_temp_tempo
-	std seq_tempo
+t_check	ldd seq_temp_tempo
+
+	; Ensure the tempo doesn't go under minimum gate time
+	cmpd #gate_time
+	bge t_write
+	ldd #gate_time
+t_write	std seq_tempo
 
 	ldx #tempo_set_msg
 	jsr [pdata]
@@ -473,20 +483,7 @@ playback
 	jsr printspaces
 
 	clr seq_record_ch 	; Set playback channel to 0 (No recording)
-pb_common	
-	; Enable interrupts for serial input, allowing processing during playback
-	clr seq_in_delay 	; Make sure the interrupts don't mess with anything before it is in the delay
-	ldx firq_jump_address
-	pshs cc,x		; Save the cc register and the previous irq data, so if firqs are already enabled then they will remain enabled after the function exits
-	ldx #playback_isr
-	stx firq_jump_address	; Set the new irq function
-	lda #0x80		; Enable serial irqs
-	jsr serial_set_interrupt
-	lda #1			; Enable timer irqs
-	sta timer_io_address
-	andcc #0xBF		; Enable FIRQ
-	clr seq_timer_fired		; Clear pending timer interrupts
-
+pb_common
 	; Set the default number of spaces to print between marks
 	lda #2
 	sta seq_num_spaces
@@ -498,17 +495,16 @@ pb_run	lda #'|'
 	
 pb_loop	
 	; Delay
-	inc seq_in_delay	; Note this is under the assumption that pb_loop is always jumped to with seq_in_delay cleared
 	jsr delay_tempo
 
 	; Check if input is pending for changing record channel
 pb_wait	lda seq_record_ch
 	cmpa #0xFE
-	beq pb_wait
-	
-	clr seq_in_delay
+	bne pb_ckqt
+	jsr isr_key		; This will block until a key is entered
+	bra pb_wait
 
-	; Check if during delay an interrupt fired which stopped playback
+pb_ckqt	; Check if during delay an interrupt fired which stopped playback
 	lda seq_record_ch
 	cmpa #0xFF
 	beq pb_done
@@ -563,19 +559,8 @@ pb_drawch
 	jsr printspaces
 	bra pb_run
 
-pb_done	; Stop serial interrupts
-	puls cc,x
-	stx firq_jump_address
-	clra
-	jsr serial_set_interrupt
-	clr timer_io_address
-
-	; Stop any notes being played
-	ldx #seq_io_base
-	clra
-	clrb
-	std ,x
-	std 2,x
+pb_done	; Stop any notes being played
+	jsr stop_pb
 
 	rts
 
@@ -773,18 +758,23 @@ ps_done	puls b
 ; =========================
 delay_tempo
 	pshs x
+	tfr x,y
 	ldx #0
 	ldb #1
-	tst seq_timer_fired
-	bne d_nowait
-d_wait	tst seq_timer_fired
-	beq d_wait
-d_nowait
-	clr seq_timer_fired
-	abx
-	cmpx seq_tempo
-	bne d_wait
+d_ms	clra
+d_cyc	inca
+	jsr [inchek]
+	beq d_nkey
+	jsr isr_key
+d_nkey	cmpa #74
+	bne d_cyc
 
+	abx
+	cmpx #gate_time
+	bne d_cnt
+	clr seq_gate_addr
+d_cnt	cmpx seq_tempo
+	bne d_ms
 	puls x
 	rts
 
@@ -800,10 +790,11 @@ play_beat
 	ldx #seq_data_base
 	tfr a,b
 	abx
-	ldy #seq_io_base
+	pshs x			; Save x register to be pulled again to save calculation time
+	ldy #seq_dac_base
 
-	; Set channel count to transfer
-	ldb #4
+	; Set channel count to transfer to dac
+	ldb #3
 	
 	; Write each channel's value for the given beat
 p_b_wch	pshs b
@@ -814,6 +805,30 @@ p_b_wch	pshs b
 	puls b
 	decb
 	bne p_b_wch
+
+	; Finally store last A value into drum channel
+	lda ,x
+	sta seq_drum_addr
+
+	; Recalculate the gate
+	; This is fine loop through again, since there will need to be at least 20us for the DAC to settle, so we can waste some time
+	puls x
+	lda #1			; temp register contains the value to or for that specific channel if it is non-zero for gating
+	sta play_beat_temp
+	clra			; a contains the value to write to the gate
+	ldb #4			; b contains number of channels to search
+p_b_cg	tst ,x
+	beq p_b_ng
+	ora play_beat_temp
+p_b_ng	lsl play_beat_temp
+	pshs b
+	ldb #16
+	abx
+	puls b
+	decb
+	bne p_b_cg
+
+	sta seq_gate_addr
 
 	puls x,y,b
 	rts
@@ -925,37 +940,20 @@ gb_done	puls y
 	cmpa #32
 	rts
 
-; =========================
-; Serial Interrupt Routines
-; =========================
-; a register: 0x80 for enable interrupts, 0 for disable
-serial_set_interrupt
-	adda #serial_base_config
-	sta serial_io_address
+stop_pb
+	pshs x,a,b
+	ldx #seq_dac_base
+	clra
+	clrb
+	std ,x
+	std 2,x
+	clr seq_drum_addr
+	clr seq_gate_addr
+	puls x,a,b
 	rts
 
-playback_isr
-	pshs a,b
-
-	jsr [inchek]		; Check if interrupt is from key press
-	bne isr_key
-
-	tst timer_io_address+1	; Check if interrupt is from timer
-	bne isr_timer
-
-	lbra isr_end		; Else ignore
-
-isr_timer
-	clr timer_io_address+1
-	lda #1
-	sta seq_timer_fired
-	lbra isr_end
-
-isr_key	jsr [inch]
-
-	; Check if it is okay to do handling of incoming serial data
-	ldb seq_in_delay
-	beq isr_end
+isr_key	pshs a,b
+	jsr [inch]
 
 	; Process universal keypresses
 	cmpa #stop_key
@@ -1032,7 +1030,7 @@ isr_do_playback
 	clr seq_record_ch
 
 isr_end	puls a,b
-	rti
+	rts
 
 ; =========================
 ; Data Section
@@ -1058,7 +1056,7 @@ channel_prompt_msg
 	fcc "Ch? "
 	fcb $04
 tempo_prompt_msg
-	fcc "Enter Tempo (. to end, other to abort): "
+	fcc "Enter Tempo (enter to end, other to abort): "
 	fcb $04
 clear_prompt_msg
 	fcc "Enter Channel to Clear (other to abort): "
@@ -1067,7 +1065,7 @@ realtime_ch_prompt_msg
 	fcc "Enter Channel to Play (other to abort): "
 	fcb $04
 realtime_entry_msg
-	fcc "\r\nPress Keys to Play... (c to change channel, z to abort)\r\n"
+	fcc "\r\nPress Keys to Play... (C to change channel, Z to abort)\r\n"
 	fcb $04
 tempo_set_msg
 	fcc " - Tempo Set"
@@ -1109,7 +1107,7 @@ oct_change_rp
 	fcc " Oct\r\n"
 	fcb $04
 keyboard_sequence
-	fcc "awsedftgyhujkolp;'"
+	fcc "AWSEDFTGYHUJKOLP;'"
 	fcb $04
 keyboard_seq_offset
 	; Keyboard sequence address offset in big endian
