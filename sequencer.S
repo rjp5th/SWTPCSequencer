@@ -1,4 +1,4 @@
-; Basic sequencer program
+; SWTPC 6809 sequencer program
 ; Can be jumped into at entry address
 ; Expects stack to be set up
 
@@ -22,15 +22,16 @@ clear_key	equ 'C'
 tempo_key	equ 'X'
 realtime_pb_key	equ 'B'
 man_entry_key	equ 'V'
+version_key	equ 'Q'
 change_ch_key	equ 'C'
 clear_note_key	equ '.'
 
 ; =========================
 ; Sequencer Addresses
 ; =========================
-seq_dac_base equ $E020
-seq_drum_addr equ $E024
-seq_gate_addr equ $E028
+seq_dac_base equ $E020		; Writing to this address outputs the value on the DAC, scaled to 0-5V
+seq_drum_addr equ $E024		; Writing to this address sets the drum triggers
+seq_gate_addr equ $E028		; Writing to this address sets the gate triggers for the analog channels
 
 ; =========================
 ; Memory Addresses
@@ -122,6 +123,8 @@ poll	jsr [inchek]
 	beq do_realtime_playback
 	cmpa #man_entry_key
 	beq do_manual_entry
+	cmpa #version_key
+	beq do_version
 
 	bra poll
 do_playback
@@ -142,6 +145,10 @@ do_realtime_playback
 do_manual_entry
 	jsr manual_entry
 	bra redraw
+do_version
+	ldx #version
+	jsr [pdata]
+	bra redraw
 ;crashme
 ;	ldx #cm_msg
 ;	jsr [pdata]
@@ -157,6 +164,16 @@ do_manual_entry
 manual_entry
 	; Set initial state
 	clr octave_printed
+	
+	; Temporarily tempo to minimum gate time
+	ldd seq_tempo
+	pshs a,b
+	ldd #gate_time
+	std seq_tempo
+	
+	; Force record channel to "stoppping" to make sure delay subroutine doesn't process any keypresses
+	lda #0xFF
+	sta seq_record_ch
 
 	; Prompt for channel
 	ldx #channel_prompt_msg
@@ -221,6 +238,7 @@ me_loop	jsr [inchek]
 	; Play Beat
 	lda ,y
 	jsr play_beat
+	jsr delay_tempo		; Delay for gate_time (tempo overwritten with gate_time)
 
 	; ===Print tick===
 	lda seq_num_spaces
@@ -254,6 +272,10 @@ me_drawch
 me_done	; Stop any notes being played
 	jsr stop_pb
 
+	; Restore tempo to actual value
+	puls a,b
+	std seq_tempo
+
 	rts
 
 
@@ -263,6 +285,16 @@ me_done	; Stop any notes being played
 realtime_playback
 	; Set initial state
 	clr octave_printed
+
+	; Temporarily tempo to minimum gate time
+	ldd seq_tempo
+	pshs a,b
+	ldd #gate_time
+	std seq_tempo
+
+	; Force record channel to "stoppping" to make sure delay subroutine doesn't process any keypresses
+	lda #0xFF
+	sta seq_record_ch
 
 	; Clear any pending played notes (when called internally)
 	jsr stop_pb
@@ -330,10 +362,16 @@ rp_inc	jsr [inchek]
 	lda ,x
 	sta ,y
 
+	jsr delay_tempo		; Delay for gate_time (tempo overwritten with gate_time)
+
 	bra rp_play
 
 rp_done	; Stop any pending playback
 	jsr stop_pb
+
+	; Restore tempo to actual value
+	puls a,b
+	std seq_tempo
 
 	rts
 
@@ -414,6 +452,11 @@ cl_wfch	jsr [inchek]
 
 	; Calculate address of sequence data
 	subb #49
+
+	; Jump into subroutine at this point to clear channel with b = channel-1 to clear
+clear_channel
+	fcb 0x10
+	fcb 0x4a
 	lda #0x10
 	mul
 	ldx #seq_data_base
@@ -425,7 +468,10 @@ cl_wfch	jsr [inchek]
 cl_loop	sta ,x+
 	decb
 	bne cl_loop
-cl_done	rts
+cl_done	
+	fcb 0x10
+	fcb 0x4a
+	rts
 
 ; =========================
 ; Record subroutine
@@ -757,7 +803,7 @@ ps_done	puls b
 ; Delay Subroutine
 ; =========================
 delay_tempo
-	pshs x
+	pshs x,Y
 	tfr x,y
 	ldx #0
 	ldb #1
@@ -773,9 +819,10 @@ d_nkey	cmpa #74
 	cmpx #gate_time
 	bne d_cnt
 	clr seq_gate_addr
+	clr seq_drum_addr
 d_cnt	cmpx seq_tempo
 	bne d_ms
-	puls x
+	puls x,y
 	rts
 
 ; =========================
@@ -940,6 +987,12 @@ gb_done	puls y
 	cmpa #32
 	rts
 
+; =========================
+; Stop Playback Subroutine
+; =========================
+; Clears all 4 DAC channels, the 8 drum channels, and the gate signals
+; Does not take any arguments
+; Saves a,b,x,y
 stop_pb
 	pshs x,a,b
 	ldx #seq_dac_base
@@ -953,6 +1006,11 @@ stop_pb
 	rts
 
 isr_key	pshs a,b
+	
+	ldb seq_record_ch
+	cmpb #0xFF
+	lbeq isr_end	; Don't process any keypresses if stopping
+	
 	jsr [inch]
 
 	; Process universal keypresses
@@ -964,12 +1022,14 @@ isr_key	pshs a,b
 	beq isr_do_record
 
 	; Process keypresses depending on recording/playback/expecting channel data
-	ldb seq_record_ch
+	cmpb #0
 	beq isr_end	; Nothing special to do during playback, only universal keypresses
-	cmpb #0xFF
-	beq isr_end	; Don't do anything special if it is stopping
 	cmpb #0xFE
 	beq isr_sel_ch	; Do channel selection if it is waiting for a channel
+
+	; Check if keypress is clear
+	cmpa #clear_key
+	beq isr_do_clear
 	
 	; Everything else is recording and b now contains the channel to record to
 	pshs x,b
@@ -1028,6 +1088,19 @@ isr_do_playback
 
 	; Set to playback
 	clr seq_record_ch
+	bra isr_end
+
+isr_do_clear
+	; b contains current channel, clear that channel
+	; Print command executed
+	lda #'C'
+	jsr [outch]
+	dec seq_num_spaces
+
+	decb
+	pshs x,y
+	jsr clear_channel
+	puls x,y
 
 isr_end	puls a,b
 	rts
@@ -1042,6 +1115,11 @@ controls
 	fcb $04
 controls2
 	fcc "B: Direct Playback - V: Manual Entry"
+	fcb $04
+version
+	fcc "\r\nAuthor:Robert Pafford 2021-2023\r\nBuild:"
+	fcc BUILD_ID
+	fcb "\r\n"
 	fcb $04
 playback_msg
 	fcc "Playback"
