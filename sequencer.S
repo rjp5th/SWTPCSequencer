@@ -455,8 +455,6 @@ cl_wfch	jsr [inchek]
 
 	; Jump into subroutine at this point to clear channel with b = channel-1 to clear
 clear_channel
-	fcb 0x10
-	fcb 0x4a
 	lda #0x10
 	mul
 	ldx #seq_data_base
@@ -468,9 +466,7 @@ clear_channel
 cl_loop	sta ,x+
 	decb
 	bne cl_loop
-cl_done	
-	fcb 0x10
-	fcb 0x4a
+cl_done
 	rts
 
 ; =========================
