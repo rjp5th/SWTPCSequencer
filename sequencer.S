@@ -25,6 +25,10 @@ man_entry_key	equ 'V'
 version_key	equ 'Q'
 change_ch_key	equ 'C'
 clear_note_key	equ '.'
+rec_ch1_key	equ $04
+rec_ch2_key	equ $10
+rec_ch3_key	equ $09
+rec_ch4_key	equ $02
 
 ; =========================
 ; Sequencer Addresses
@@ -164,16 +168,6 @@ do_version
 manual_entry
 	; Set initial state
 	clr octave_printed
-	
-	; Temporarily tempo to minimum gate time
-	ldd seq_tempo
-	pshs a,b
-	ldd #gate_time
-	std seq_tempo
-	
-	; Force record channel to "stoppping" to make sure delay subroutine doesn't process any keypresses
-	lda #0xFF
-	sta seq_record_ch
 
 	; Prompt for channel
 	ldx #channel_prompt_msg
@@ -238,7 +232,7 @@ me_loop	jsr [inchek]
 	; Play Beat
 	lda ,y
 	jsr play_beat
-	jsr delay_tempo		; Delay for gate_time (tempo overwritten with gate_time)
+	jsr delay_gate_time
 
 	; ===Print tick===
 	lda seq_num_spaces
@@ -272,10 +266,6 @@ me_drawch
 me_done	; Stop any notes being played
 	jsr stop_pb
 
-	; Restore tempo to actual value
-	puls a,b
-	std seq_tempo
-
 	rts
 
 
@@ -285,16 +275,6 @@ me_done	; Stop any notes being played
 realtime_playback
 	; Set initial state
 	clr octave_printed
-
-	; Temporarily tempo to minimum gate time
-	ldd seq_tempo
-	pshs a,b
-	ldd #gate_time
-	std seq_tempo
-
-	; Force record channel to "stoppping" to make sure delay subroutine doesn't process any keypresses
-	lda #0xFF
-	sta seq_record_ch
 
 	; Clear any pending played notes (when called internally)
 	jsr stop_pb
@@ -362,16 +342,21 @@ rp_inc	jsr [inchek]
 	lda ,x
 	sta ,y
 
-	jsr delay_tempo		; Delay for gate_time (tempo overwritten with gate_time)
+	; Calculate and set the gate for the channel being played
+	ldb seq_record_ch
+	lda #1
+rp_gate	lsla
+	decb
+	bne rp_gate
+	lsra
+	sta seq_gate_addr
+
+	jsr delay_gate_time
 
 	bra rp_play
 
 rp_done	; Stop any pending playback
 	jsr stop_pb
-
-	; Restore tempo to actual value
-	puls a,b
-	std seq_tempo
 
 	rts
 
@@ -441,6 +426,8 @@ clear
 cl_wfch	jsr [inchek]
 	beq cl_wfch
 	jsr [inch]
+	cmpa #'A'
+	beq cl_all
 	cmpa #'1'
 	blt cl_done
 	cmpa #'4'
@@ -462,12 +449,19 @@ clear_channel
 	
 	; Clear the channel of existing data
 	ldb #0x10
+cl_loop_entry
 	clra
 cl_loop	sta ,x+
 	decb
 	bne cl_loop
 cl_done
 	rts
+
+cl_all	; Clear all channels
+	jsr [outch]
+	ldx #seq_data_base
+	ldb #0x40
+	bra cl_loop_entry
 
 ; =========================
 ; Record subroutine
@@ -798,8 +792,9 @@ ps_done	puls b
 ; =========================
 ; Delay Subroutine
 ; =========================
+; x,y register is saved
 delay_tempo
-	pshs x,Y
+	pshs x,y
 	tfr x,y
 	ldx #0
 	ldb #1
@@ -819,6 +814,23 @@ d_nkey	cmpa #74
 d_cnt	cmpx seq_tempo
 	bne d_ms
 	puls x,y
+	rts
+
+; =========================
+; Delay Gate Time Subroutine
+; =========================
+; a,b registers are not saved
+delay_gate_time
+	; Delay for approx. gate_time to give time for gate to settle when performing playback
+	; Clears gates and drum channels at end of subroutine
+	
+	ldd #$C0*gate_time
+rp_cyc	jsr [inchek]	; Waste cycles, value being thrown out
+	subd #1
+	bne rp_cyc
+
+	clr seq_gate_addr
+	clr seq_drum_addr
 	rts
 
 ; =========================
@@ -1005,7 +1017,7 @@ isr_key	pshs a,b
 	
 	ldb seq_record_ch
 	cmpb #0xFF
-	lbeq isr_end	; Don't process any keypresses if stopping
+	beq isr_end	; Don't process any keypresses if stopping
 	
 	jsr [inch]
 
@@ -1022,6 +1034,16 @@ isr_key	pshs a,b
 	beq isr_end	; Nothing special to do during playback, only universal keypresses
 	cmpb #0xFE
 	beq isr_sel_ch	; Do channel selection if it is waiting for a channel
+
+	; Check if keypress is change channel
+	cmpa #rec_ch1_key
+	beq isr_set_ch1
+	cmpa #rec_ch2_key
+	beq isr_set_ch2
+	cmpa #rec_ch3_key
+	beq isr_set_ch3
+	cmpa #rec_ch4_key
+	beq isr_set_ch4
 
 	; Check if keypress is clear
 	cmpa #clear_key
@@ -1043,7 +1065,8 @@ isr_sel_ch
 	blt isr_end
 	cmpa #'4'
 	bgt isr_end
-	
+
+isr_write_ch
 	; Store selected channel
 	suba #48  ; Convert '1'-'4' to 1-4
 	sta seq_record_ch
@@ -1063,7 +1086,9 @@ isr_sel_ch
 isr_stop_playback
 	lda #0xFF
 	sta seq_record_ch
-	bra isr_end
+
+isr_end	puls a,b
+	rts
 
 isr_do_record
 	; Print command to display
@@ -1086,6 +1111,26 @@ isr_do_playback
 	clr seq_record_ch
 	bra isr_end
 
+isr_set_ch1
+	lda #1
+	bra isr_set_ch
+isr_set_ch2
+	lda #2
+	bra isr_set_ch
+isr_set_ch3
+	lda #3
+	bra isr_set_ch
+isr_set_ch4
+	lda #4
+	bra isr_set_ch
+
+isr_set_ch
+	adda #48
+	jsr [outch]
+	dec seq_num_spaces
+
+	bra isr_write_ch
+
 isr_do_clear
 	; b contains current channel, clear that channel
 	; Print command executed
@@ -1097,9 +1142,7 @@ isr_do_clear
 	pshs x,y
 	jsr clear_channel
 	puls x,y
-
-isr_end	puls a,b
-	rts
+	bra isr_end
 
 ; =========================
 ; Data Section
@@ -1133,7 +1176,7 @@ tempo_prompt_msg
 	fcc "Enter Tempo (enter to end, other to abort): "
 	fcb $04
 clear_prompt_msg
-	fcc "Enter Channel to Clear (other to abort): "
+	fcc "Enter Channel to Clear (A: all, other to abort): "
 	fcb $04
 realtime_ch_prompt_msg
 	fcc "Enter Channel to Play (other to abort): "

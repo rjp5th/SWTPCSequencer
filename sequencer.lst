@@ -25,6 +25,10 @@ F80E                  pcrlf   equ $F80E
 0051                  version_key     equ 'Q'
 0043                  change_ch_key   equ 'C'
 002E                  clear_note_key  equ '.'
+0004                  rec_ch1_key     equ $04
+0010                  rec_ch2_key     equ $10
+0009                  rec_ch3_key     equ $09
+0002                  rec_ch4_key     equ $02
                       
                       ; =========================
                       ; Sequencer Addresses
@@ -88,23 +92,23 @@ E814  26FB                    bne data_cl
 E816  AD9FF80E                jsr [pcrlf]
                       
 E81A  861E                    lda #30
-E81C  BDEC33                  jsr printspaces
-E81F  8EEDD3                  ldx #banner
+E81C  BDEC25                  jsr printspaces
+E81F  8EEE01                  ldx #banner
 E822  AD9FF80C                jsr [pdata]
                       
                               ; Print Controls        
 E826  AD9FF80E        redraw  jsr [pcrlf]
 E82A  860D                    lda #13
-E82C  BDEC33                  jsr printspaces
-E82F  8EEDEB                  ldx #controls
+E82C  BDEC25                  jsr printspaces
+E82F  8EEE19                  ldx #controls
 E832  AD9FF80C                jsr [pdata]
 E836  AD9FF80E                jsr [pcrlf]
 E83A  8616                    lda #22
-E83C  BDEC33                  jsr printspaces
-E83F  8EEE22                  ldx #controls2
+E83C  BDEC25                  jsr printspaces
+E83F  8EEE50                  ldx #controls2
 E842  AD9FF80C                jsr [pdata]
                       
-E846  BDEB3D                  jsr drawscreen
+E846  BDEB2F                  jsr drawscreen
 E849  AD9FF808        poll    jsr [inchek]
 E84D  27FA                    beq poll
                       
@@ -128,25 +132,25 @@ E86D  2720                    beq do_version
                       
 E86F  20D8                    bra poll
 E871                  do_playback
-E871  BDEAB9                  jsr playback
+E871  BDEAAB                  jsr playback
 E874  20B0                    bra redraw
 E876                  do_record
-E876  BDEA78                  jsr record
+E876  BDEA6A                  jsr record
 E879  20AB                    bra redraw
 E87B                  do_tempo
-E87B  BDE9E9                  jsr tempo
+E87B  BDE9CC                  jsr tempo
 E87E  20A6                    bra redraw
 E880                  do_clear
-E880  BDEA46                  jsr clear
+E880  BDEA29                  jsr clear
 E883  20A1                    bra redraw
 E885                  do_realtime_playback
-E885  BDE954                  jsr realtime_playback
+E885  BDE93F                  jsr realtime_playback
 E888  209C                    bra redraw
 E88A                  do_manual_entry
 E88A  BDE898                  jsr manual_entry
 E88D  2097                    bra redraw
 E88F                  do_version
-E88F  8EEE47                  ldx #version
+E88F  8EEE75                  ldx #version
 E892  AD9FF80C                jsr [pdata]
 E896  208E                    bra redraw
                       ;crashme
@@ -164,717 +168,725 @@ E896  208E                    bra redraw
 E898                  manual_entry
                               ; Set initial state
 E898  7F404B                  clr octave_printed
-                              
-                              ; Temporarily tempo to minimum gate time
-E89B  FC4040                  ldd seq_tempo
-E89E  3406                    pshs a,b
-E8A0  CC0014                  ldd #gate_time
-E8A3  FD4040                  std seq_tempo
-                              
-                              ; Force record channel to "stoppping" to make sure delay subroutine doesn't process any keypresses
-E8A6  86FF                    lda #0xFF
-E8A8  B74046                  sta seq_record_ch
                       
                               ; Prompt for channel
-E8AB  8EEE8D                  ldx #channel_prompt_msg
-E8AE  AD9FF80C                jsr [pdata]
+E89B  8EEEBB                  ldx #channel_prompt_msg
+E89E  AD9FF80C                jsr [pdata]
                       
                               ; Get channel to record
-E8B2  AD9FF808        me_wfch jsr [inchek]
-E8B6  27FA                    beq me_wfch
-E8B8  AD9FF804                jsr [inch]
-E8BC  815A                    cmpa #stop_key
-E8BE  10270089                lbeq me_done
-E8C2  8131                    cmpa #'1'
-E8C4  2DEC                    blt me_wfch
-E8C6  8134                    cmpa #'4'
-E8C8  2EE8                    bgt me_wfch
+E8A2  AD9FF808        me_wfch jsr [inchek]
+E8A6  27FA                    beq me_wfch
+E8A8  AD9FF804                jsr [inch]
+E8AC  815A                    cmpa #stop_key
+E8AE  10270089                lbeq me_done
+E8B2  8131                    cmpa #'1'
+E8B4  2DEC                    blt me_wfch
+E8B6  8134                    cmpa #'4'
+E8B8  2EE8                    bgt me_wfch
                               
                               ; Echo channel select
-E8CA  1F89                    tfr a,b
-E8CC  AD9FF80A                jsr [outch]
+E8BA  1F89                    tfr a,b
+E8BC  AD9FF80A                jsr [outch]
                       
                               ; Store channel
-E8D0  C030                    subb #48
-E8D2  F74046                  stb seq_record_ch
+E8C0  C030                    subb #48
+E8C2  F74046                  stb seq_record_ch
                       
                               ; Make channel range 0-3 to calculate record address (stored in x)
-E8D5  5A                      decb
-E8D6  8610                    lda #0x10
-E8D8  3D                      mul
-E8D9  8E4000                  ldx #seq_data_base
-E8DC  3A                      abx
+E8C5  5A                      decb
+E8C6  8610                    lda #0x10
+E8C8  3D                      mul
+E8C9  8E4000                  ldx #seq_data_base
+E8CC  3A                      abx
                       
-E8DD  3410                    pshs x
+E8CD  3410                    pshs x
                               ; Print manual message
-E8DF  8EEE87                  ldx #manual_msg
-E8E2  AD9FF80C                jsr [pdata]
-E8E6  8605                    lda #5
-E8E8  BDEC33                  jsr printspaces
-E8EB  3510                    puls x
+E8CF  8EEEB5                  ldx #manual_msg
+E8D2  AD9FF80C                jsr [pdata]
+E8D6  8605                    lda #5
+E8D8  BDEC25                  jsr printspaces
+E8DB  3510                    puls x
                       
-E8ED  867C                    lda #'|'
-E8EF  AD9FF80A                jsr [outch]
+E8DD  867C                    lda #'|'
+E8DF  AD9FF80A                jsr [outch]
                       
                               ; Set the default number of spaces to print between marks
-E8F3  8602                    lda #2
-E8F5  B74048                  sta seq_num_spaces
+E8E3  8602                    lda #2
+E8E5  B74048                  sta seq_num_spaces
                       
-E8F8  108E4047                ldy #seq_cur_beat
-E8FC  6FA4                    clr ,y
-E8FE  AD9FF808        me_loop jsr [inchek]
-E902  27FA                    beq me_loop
-E904  AD9FF804                jsr [inch]
+E8E8  108E4047                ldy #seq_cur_beat
+E8EC  6FA4                    clr ,y
+E8EE  AD9FF808        me_loop jsr [inchek]
+E8F2  27FA                    beq me_loop
+E8F4  AD9FF804                jsr [inch]
                       
                               ; Check for stop
-E908  815A                    cmpa #stop_key
-E90A  273F                    beq me_done
+E8F8  815A                    cmpa #stop_key
+E8FA  273F                    beq me_done
                       
                               ; Do input processing
-E90C  F64046                  ldb seq_record_ch
-E90F  BDECBD                  jsr get_beat
-E912  26EA                    bne me_loop
+E8FC  F64046                  ldb seq_record_ch
+E8FF  BDECC2                  jsr get_beat
+E902  26EA                    bne me_loop
                       
                               ; Play Beat
-E914  A6A4                    lda ,y
-E916  BDEC76                  jsr play_beat
-E919  BDEC4A                  jsr delay_tempo         ; Delay for gate_time (tempo overwritten with gate_time)
+E904  A6A4                    lda ,y
+E906  BDEC7B                  jsr play_beat
+E909  BDEC68                  jsr delay_gate_time
                       
                               ; ===Print tick===
-E91C  B64048                  lda seq_num_spaces
-E91F  4D                      tsta
-E920  2A01                    bpl me_pspa
-E922  4F                      clra
-E923  BDEC33          me_pspa jsr printspaces
-E926  8602                    lda #2
-E928  B74048                  sta seq_num_spaces
+E90C  B64048                  lda seq_num_spaces
+E90F  4D                      tsta
+E910  2A01                    bpl me_pspa
+E912  4F                      clra
+E913  BDEC25          me_pspa jsr printspaces
+E916  8602                    lda #2
+E918  B74048                  sta seq_num_spaces
                               
-E92B  E680                    ldb ,x+
-E92D  862E                    lda #46
-E92F  5D                      tstb
-E930  2702                    beq me_drawch
-E932  8BFC                    adda #-4
-E934                  me_drawch
-E934  AD9FF80A                jsr [outch]
+E91B  E680                    ldb ,x+
+E91D  862E                    lda #46
+E91F  5D                      tstb
+E920  2702                    beq me_drawch
+E922  8BFC                    adda #-4
+E924                  me_drawch
+E924  AD9FF80A                jsr [outch]
                       
                               ; Increment beat counter
-E938  A6A4                    lda ,y
-E93A  4C                      inca
-E93B  A7A4                    sta ,y
-E93D  8110                    cmpa #16
-E93F  2DBD                    blt me_loop
+E928  A6A4                    lda ,y
+E92A  4C                      inca
+E92B  A7A4                    sta ,y
+E92D  8110                    cmpa #16
+E92F  2DBD                    blt me_loop
                       
                               ; If at end of line, print line terminator and quit
-E941  867C                    lda #'|'
-E943  AD9FF80A                jsr [outch]
-E947  AD9FF80E                jsr [pcrlf]
+E931  867C                    lda #'|'
+E933  AD9FF80A                jsr [outch]
+E937  AD9FF80E                jsr [pcrlf]
                       
-E94B                  me_done ; Stop any notes being played
-E94B  BDED2F                  jsr stop_pb
+E93B                  me_done ; Stop any notes being played
+E93B  BDED34                  jsr stop_pb
                       
-                              ; Restore tempo to actual value
-E94E  3506                    puls a,b
-E950  FD4040                  std seq_tempo
-                      
-E953  39                      rts
+E93E  39                      rts
                       
                       
                       ; =========================
                       ; Realtime Playback subroutine
                       ; =========================
-E954                  realtime_playback
+E93F                  realtime_playback
                               ; Set initial state
-E954  7F404B                  clr octave_printed
-                      
-                              ; Temporarily tempo to minimum gate time
-E957  FC4040                  ldd seq_tempo
-E95A  3406                    pshs a,b
-E95C  CC0014                  ldd #gate_time
-E95F  FD4040                  std seq_tempo
-                      
-                              ; Force record channel to "stoppping" to make sure delay subroutine doesn't process any keypresses
-E962  86FF                    lda #0xFF
-E964  B74046                  sta seq_record_ch
+E93F  7F404B                  clr octave_printed
                       
                               ; Clear any pending played notes (when called internally)
-E967  BDED2F                  jsr stop_pb
+E942  BDED34                  jsr stop_pb
                       
-E96A  8EEEE9                  ldx #realtime_ch_prompt_msg
-E96D  AD9FF80C                jsr [pdata]
+E945  8EEF1F                  ldx #realtime_ch_prompt_msg
+E948  AD9FF80C                jsr [pdata]
                       
-E971  AD9FF808        rp_wfch jsr [inchek]
-E975  27FA                    beq rp_wfch
-E977  AD9FF804                jsr [inch]
-E97B  8131                    cmpa #'1'
-E97D  2D61                    blt rp_done
-E97F  8134                    cmpa #'4'
-E981  2E5D                    bgt rp_done
+E94C  AD9FF808        rp_wfch jsr [inchek]
+E950  27FA                    beq rp_wfch
+E952  AD9FF804                jsr [inch]
+E956  8131                    cmpa #'1'
+E958  2D6E                    blt rp_done
+E95A  8134                    cmpa #'4'
+E95C  2E6A                    bgt rp_done
                       
                               ; Echo selected channel to console, and give prompt to play data
-E983  3402                    pshs a
-E985  AD9FF80A                jsr [outch]
-E989  8EEF12                  ldx #realtime_entry_msg
-E98C  AD9FF80C                jsr [pdata]
-E990  3504                    puls b
+E95E  3402                    pshs a
+E960  AD9FF80A                jsr [outch]
+E964  8EEF48                  ldx #realtime_entry_msg
+E967  AD9FF80C                jsr [pdata]
+E96B  3504                    puls b
                       
                               ; Load the address to write channel data to
-E992  C030                    subb #48
-E994  F74046                  stb seq_record_ch
-E997  5A                      decb
-E998  8EE020                  ldx #seq_dac_base
-E99B  3A                      abx
+E96D  C030                    subb #48
+E96F  F74046                  stb seq_record_ch
+E972  5A                      decb
+E973  8EE020                  ldx #seq_dac_base
+E976  3A                      abx
                       
                               ; Check if drum channel, so its record address can be overidden
-E99C  C103                    cmpb #3
-E99E  2603                    bne rp_prep
-E9A0  8EE024                  ldx #seq_drum_addr
+E977  C103                    cmpb #3
+E979  2603                    bne rp_prep
+E97B  8EE024                  ldx #seq_drum_addr
                       
                               ; Make y the actual io address,
                               ; And x will be the temporary realtime data
                               ; Required for drum data or-ing
-E9A3  1F12            rp_prep tfr x,y
-E9A5  8E4049                  ldx #realtime_temp_data
+E97E  1F12            rp_prep tfr x,y
+E980  8E4049                  ldx #realtime_temp_data
                       
                               ; Get input from user
-E9A8  7D404B          rp_play tst octave_printed
-E9AB  270E                    beq rp_inc
-E9AD  7F404B                  clr octave_printed
-E9B0  3410                    pshs x
-E9B2  8EEF89                  ldx #oct_change_rp
-E9B5  AD9FF80C                jsr [pdata]
-E9B9  3510                    puls x
+E983  7D404B          rp_play tst octave_printed
+E986  270E                    beq rp_inc
+E988  7F404B                  clr octave_printed
+E98B  3410                    pshs x
+E98D  8EEFBF                  ldx #oct_change_rp
+E990  AD9FF80C                jsr [pdata]
+E994  3510                    puls x
                       
-E9BB  AD9FF808        rp_inc  jsr [inchek]
-E9BF  27E7                    beq rp_play
-E9C1  AD9FF804                jsr [inch]
-E9C5  8143                    cmpa #change_ch_key
-E9C7  278B                    beq realtime_playback
-E9C9  815A                    cmpa #stop_key
-E9CB  2713                    beq rp_done
+E996  AD9FF808        rp_inc  jsr [inchek]
+E99A  27E7                    beq rp_play
+E99C  AD9FF804                jsr [inch]
+E9A0  8143                    cmpa #change_ch_key
+E9A2  279B                    beq realtime_playback
+E9A4  815A                    cmpa #stop_key
+E9A6  2720                    beq rp_done
                       
                               ; Do processing on input data
-E9CD  F64046                  ldb seq_record_ch
-E9D0  6F84                    clr ,x
-E9D2  BDECBD                  jsr get_beat
-E9D5  26D1                    bne rp_play
+E9A8  F64046                  ldb seq_record_ch
+E9AB  6F84                    clr ,x
+E9AD  BDECC2                  jsr get_beat
+E9B0  26D1                    bne rp_play
                       
                               ; Store temporary register into actual memory
-E9D7  A684                    lda ,x
-E9D9  A7A4                    sta ,y
+E9B2  A684                    lda ,x
+E9B4  A7A4                    sta ,y
                       
-E9DB  BDEC4A                  jsr delay_tempo         ; Delay for gate_time (tempo overwritten with gate_time)
+                              ; Calculate and set the gate for the channel being played
+E9B6  F64046                  ldb seq_record_ch
+E9B9  8601                    lda #1
+E9BB  48              rp_gate lsla
+E9BC  5A                      decb
+E9BD  26FC                    bne rp_gate
+E9BF  44                      lsra
+E9C0  B7E028                  sta seq_gate_addr
                       
-E9DE  20C8                    bra rp_play
+E9C3  BDEC68                  jsr delay_gate_time
                       
-E9E0                  rp_done ; Stop any pending playback
-E9E0  BDED2F                  jsr stop_pb
+E9C6  20BB                    bra rp_play
                       
-                              ; Restore tempo to actual value
-E9E3  3506                    puls a,b
-E9E5  FD4040                  std seq_tempo
+E9C8                  rp_done ; Stop any pending playback
+E9C8  BDED34                  jsr stop_pb
                       
-E9E8  39                      rts
+E9CB  39                      rts
                       
                       ; =========================
                       ; Tempo subroutine
                       ; =========================
-E9E9                  tempo
-E9E9  8EEE92                  ldx #tempo_prompt_msg
-E9EC  AD9FF80C                jsr [pdata]
+E9CC                  tempo
+E9CC  8EEEC0                  ldx #tempo_prompt_msg
+E9CF  AD9FF80C                jsr [pdata]
                       
                               ; Clear temporary tempo
-E9F0  CC0000                  ldd #0
-E9F3  FD4044                  std seq_temp_tempo
+E9D3  CC0000                  ldd #0
+E9D6  FD4044                  std seq_temp_tempo
                       
-E9F6  AD9FF808        t_waitc jsr [inchek]
-E9FA  27FA                    beq t_waitc
-E9FC  AD9FF804                jsr [inch]
-EA00  810D                    cmpa #$0D
-EA02  2727                    beq t_check
-EA04  AD9FF80A                jsr [outch]
-EA08  8130                    cmpa #'0'
-EA0A  2D35                    blt t_done
-EA0C  8139                    cmpa #'9'
-EA0E  2E31                    bgt t_done
+E9D9  AD9FF808        t_waitc jsr [inchek]
+E9DD  27FA                    beq t_waitc
+E9DF  AD9FF804                jsr [inch]
+E9E3  810D                    cmpa #$0D
+E9E5  2727                    beq t_check
+E9E7  AD9FF80A                jsr [outch]
+E9EB  8130                    cmpa #'0'
+E9ED  2D35                    blt t_done
+E9EF  8139                    cmpa #'9'
+E9F1  2E31                    bgt t_done
                       
                               ; Convert char to number
-EA10  8030                    suba #48
-EA12  3402                    pshs a
+E9F3  8030                    suba #48
+E9F5  3402                    pshs a
                       
                               ; Multiply existing temporary tempo by 10 and add entered number
-EA14  108E4044                ldy #seq_temp_tempo
-EA18  E621                    ldb 1,y
-EA1A  860A                    lda #10
-EA1C  3D                      mul
-EA1D  1F01                    tfr d,x
-EA1F  3504                    puls b
-EA21  3A                      abx
-EA22  AFA4                    stx ,y
+E9F7  108E4044                ldy #seq_temp_tempo
+E9FB  E621                    ldb 1,y
+E9FD  860A                    lda #10
+E9FF  3D                      mul
+EA00  1F01                    tfr d,x
+EA02  3504                    puls b
+EA04  3A                      abx
+EA05  AFA4                    stx ,y
                       
                               ; If the number is too big to fit into b before multiplication, write it (gives range of 2559)
-EA24  8C00FF                  cmpx #255
-EA27  2E02                    bgt t_check
+EA07  8C00FF                  cmpx #255
+EA0A  2E02                    bgt t_check
                       
-EA29  20CB                    bra t_waitc
-EA2B  FC4044          t_check ldd seq_temp_tempo
+EA0C  20CB                    bra t_waitc
+EA0E  FC4044          t_check ldd seq_temp_tempo
                       
                               ; Ensure the tempo doesn't go under minimum gate time
-EA2E  10830014                cmpd #gate_time
-EA32  2C03                    bge t_write
-EA34  CC0014                  ldd #gate_time
-EA37  FD4040          t_write std seq_tempo
+EA11  10830014                cmpd #gate_time
+EA15  2C03                    bge t_write
+EA17  CC0014                  ldd #gate_time
+EA1A  FD4040          t_write std seq_tempo
                       
-EA3A  8EEF4E                  ldx #tempo_set_msg
-EA3D  AD9FF80C                jsr [pdata]
-EA41  AD9FF80E        t_done  jsr [pcrlf]
-EA45  39                      rts
+EA1D  8EEF84                  ldx #tempo_set_msg
+EA20  AD9FF80C                jsr [pdata]
+EA24  AD9FF80E        t_done  jsr [pcrlf]
+EA28  39                      rts
                       
                       ; =========================
                       ; Clear subroutine
                       ; =========================
-EA46                  clear
+EA29                  clear
                               ; Prompt for channel
-EA46  8EEEBF                  ldx #clear_prompt_msg
-EA49  AD9FF80C                jsr [pdata]
+EA29  8EEEED                  ldx #clear_prompt_msg
+EA2C  AD9FF80C                jsr [pdata]
                       
                               ; Get channel to clear
-EA4D  AD9FF808        cl_wfch jsr [inchek]
-EA51  27FA                    beq cl_wfch
-EA53  AD9FF804                jsr [inch]
-EA57  8131                    cmpa #'1'
-EA59  2D1B                    blt cl_done
-EA5B  8134                    cmpa #'4'
-EA5D  2E17                    bgt cl_done
+EA30  AD9FF808        cl_wfch jsr [inchek]
+EA34  27FA                    beq cl_wfch
+EA36  AD9FF804                jsr [inch]
+EA3A  8141                    cmpa #'A'
+EA3C  2720                    beq cl_all
+EA3E  8131                    cmpa #'1'
+EA40  2D1B                    blt cl_done
+EA42  8134                    cmpa #'4'
+EA44  2E17                    bgt cl_done
                       
                               ; Echo channel select
-EA5F  1F89                    tfr a,b
-EA61  AD9FF80A                jsr [outch]
+EA46  1F89                    tfr a,b
+EA48  AD9FF80A                jsr [outch]
                       
                               ; Calculate address of sequence data
-EA65  C031                    subb #49
+EA4C  C031                    subb #49
                       
                               ; Jump into subroutine at this point to clear channel with b = channel-1 to clear
-EA67                  clear_channel
-EA67  8610                    lda #0x10
-EA69  3D                      mul
-EA6A  8E4000                  ldx #seq_data_base
-EA6D  3A                      abx
+EA4E                  clear_channel
+EA4E  8610                    lda #0x10
+EA50  3D                      mul
+EA51  8E4000                  ldx #seq_data_base
+EA54  3A                      abx
                               
                               ; Clear the channel of existing data
-EA6E  C610                    ldb #0x10
-EA70  4F                      clra
-EA71  A780            cl_loop sta ,x+
-EA73  5A                      decb
-EA74  26FB                    bne cl_loop
-EA76                  cl_done 
-EA76  39                      rts
+EA55  C610                    ldb #0x10
+EA57                  cl_loop_entry
+EA57  4F                      clra
+EA58  A780            cl_loop sta ,x+
+EA5A  5A                      decb
+EA5B  26FB                    bne cl_loop
+EA5D                  cl_done
+EA5D  39                      rts
+                      
+EA5E                  cl_all  ; Clear all channels
+EA5E  AD9FF80A                jsr [outch]
+EA62  8E4000                  ldx #seq_data_base
+EA65  C640                    ldb #0x40
+EA67  20EE                    bra cl_loop_entry
                       
                       ; =========================
                       ; Record subroutine
                       ; =========================
-EA77  39              rc_quit rts
-EA78                  record
+EA69  39              rc_quit rts
+EA6A                  record
                               ; Prompt for channel
-EA78  8EEE8D                  ldx #channel_prompt_msg
-EA7B  AD9FF80C                jsr [pdata]
+EA6A  8EEEBB                  ldx #channel_prompt_msg
+EA6D  AD9FF80C                jsr [pdata]
                       
                               ; Get channel to record
-EA7F  AD9FF808        rc_wfch jsr [inchek]
-EA83  27FA                    beq rc_wfch
-EA85  AD9FF804                jsr [inch]
-EA89  815A                    cmpa #stop_key
-EA8B  27EA                    beq rc_quit
-EA8D  8131                    cmpa #'1'
-EA8F  2DEE                    blt rc_wfch
-EA91  8134                    cmpa #'4'
-EA93  2EEA                    bgt rc_wfch
+EA71  AD9FF808        rc_wfch jsr [inchek]
+EA75  27FA                    beq rc_wfch
+EA77  AD9FF804                jsr [inch]
+EA7B  815A                    cmpa #stop_key
+EA7D  27EA                    beq rc_quit
+EA7F  8131                    cmpa #'1'
+EA81  2DEE                    blt rc_wfch
+EA83  8134                    cmpa #'4'
+EA85  2EEA                    bgt rc_wfch
                               
                               ; Echo channel select
-EA95  1F89                    tfr a,b
-EA97  AD9FF80A                jsr [outch]
+EA87  1F89                    tfr a,b
+EA89  AD9FF80A                jsr [outch]
                               
                               ; Store selected channel
-EA9B  C030                    subb #48  ; Convert '1'-'4' to 1-4
-EA9D  F74046                  stb seq_record_ch
+EA8D  C030                    subb #48  ; Convert '1'-'4' to 1-4
+EA8F  F74046                  stb seq_record_ch
                       
                               ; Make channel range 0-3 to calculate record address
-EAA0  5A                      decb
-EAA1  8610                    lda #0x10
-EAA3  3D                      mul
-EAA4  8E4000                  ldx #seq_data_base
-EAA7  3A                      abx
-EAA8  BF4042                  stx seq_record
+EA92  5A                      decb
+EA93  8610                    lda #0x10
+EA95  3D                      mul
+EA96  8E4000                  ldx #seq_data_base
+EA99  3A                      abx
+EA9A  BF4042                  stx seq_record
                       
                               ; Print record message
-EAAB  8EEE82                  ldx #record_msg
-EAAE  AD9FF80C                jsr [pdata]
-EAB2  8606                    lda #6
-EAB4  BDEC33                  jsr printspaces
+EA9D  8EEEB0                  ldx #record_msg
+EAA0  AD9FF80C                jsr [pdata]
+EAA4  8606                    lda #6
+EAA6  BDEC25                  jsr printspaces
                       
-EAB7  200F                    bra pb_common
+EAA9  200F                    bra pb_common
                       
                       
                       ; =========================
                       ; Playback subroutine
                       ; =========================
-EAB9                  playback
+EAAB                  playback
                               ; Print playback symbol
-EAB9  8EEE79                  ldx #playback_msg
-EABC  AD9FF80C                jsr [pdata]
-EAC0  8607                    lda #7
-EAC2  BDEC33                  jsr printspaces
+EAAB  8EEEA7                  ldx #playback_msg
+EAAE  AD9FF80C                jsr [pdata]
+EAB2  8607                    lda #7
+EAB4  BDEC25                  jsr printspaces
                       
-EAC5  7F4046                  clr seq_record_ch       ; Set playback channel to 0 (No recording)
-EAC8                  pb_common
+EAB7  7F4046                  clr seq_record_ch       ; Set playback channel to 0 (No recording)
+EABA                  pb_common
                               ; Set the default number of spaces to print between marks
-EAC8  8602                    lda #2
-EACA  B74048                  sta seq_num_spaces
+EABA  8602                    lda #2
+EABC  B74048                  sta seq_num_spaces
                       
-EACD  867C            pb_run  lda #'|'
-EACF  AD9FF80A                jsr [outch]
+EABF  867C            pb_run  lda #'|'
+EAC1  AD9FF80A                jsr [outch]
                               
-EAD3  7F4047                  clr seq_cur_beat        ; Set the currently played beat to 0
+EAC5  7F4047                  clr seq_cur_beat        ; Set the currently played beat to 0
                               
-EAD6                  pb_loop 
+EAC8                  pb_loop 
                               ; Delay
-EAD6  BDEC4A                  jsr delay_tempo
+EAC8  BDEC3C                  jsr delay_tempo
                       
                               ; Check if input is pending for changing record channel
-EAD9  B64046          pb_wait lda seq_record_ch
-EADC  81FE                    cmpa #0xFE
-EADE  2605                    bne pb_ckqt
-EAE0  BDED43                  jsr isr_key             ; This will block until a key is entered
-EAE3  20F4                    bra pb_wait
+EACB  B64046          pb_wait lda seq_record_ch
+EACE  81FE                    cmpa #0xFE
+EAD0  2605                    bne pb_ckqt
+EAD2  BDED48                  jsr isr_key             ; This will block until a key is entered
+EAD5  20F4                    bra pb_wait
                       
-EAE5                  pb_ckqt ; Check if during delay an interrupt fired which stopped playback
-EAE5  B64046                  lda seq_record_ch
-EAE8  81FF                    cmpa #0xFF
-EAEA  274D                    beq pb_done
+EAD7                  pb_ckqt ; Check if during delay an interrupt fired which stopped playback
+EAD7  B64046                  lda seq_record_ch
+EADA  81FF                    cmpa #0xFF
+EADC  274D                    beq pb_done
                       
                               ; Play Beat
-EAEC  B64047                  lda seq_cur_beat
-EAEF  BDEC76                  jsr play_beat
+EADE  B64047                  lda seq_cur_beat
+EAE1  BDEC7B                  jsr play_beat
                       
                               ; ===Print tick===
                       
                               ; Print number of spaces required, then reset the value
-EAF2  B64048                  lda seq_num_spaces
-EAF5  4D                      tsta
-EAF6  2A01                    bpl pb_pspa
-EAF8  4F                      clra
-EAF9  BDEC33          pb_pspa jsr printspaces
-EAFC  8602                    lda #2
-EAFE  B74048                  sta seq_num_spaces
+EAE4  B64048                  lda seq_num_spaces
+EAE7  4D                      tsta
+EAE8  2A01                    bpl pb_pspa
+EAEA  4F                      clra
+EAEB  BDEC25          pb_pspa jsr printspaces
+EAEE  8602                    lda #2
+EAF0  B74048                  sta seq_num_spaces
                               
                               ; Tick will be different for playback vs recording
-EB01  B64046                  lda seq_record_ch
-EB04  2604                    bne pb_rec
+EAF3  B64046                  lda seq_record_ch
+EAF6  2604                    bne pb_rec
                               
                               ; Character to display during playback
-EB06  862E                    lda #'.'
-EB08  200F                    bra pb_drawch
+EAF8  862E                    lda #'.'
+EAFA  200F                    bra pb_drawch
                               
-EB0A                  pb_rec  ; This code will run when it is recording
-EB0A  BE4042                  ldx seq_record
-EB0D  B64047                  lda seq_cur_beat
-EB10  E686                    ldb a,x
+EAFC                  pb_rec  ; This code will run when it is recording
+EAFC  BE4042                  ldx seq_record
+EAFF  B64047                  lda seq_cur_beat
+EB02  E686                    ldb a,x
                               
-EB12  862E                    lda #46
-EB14  5D                      tstb
-EB15  2702                    beq pb_drawch
-EB17  8BFC                    adda #-4
-EB19                  pb_drawch
-EB19  AD9FF80A                jsr [outch]
+EB04  862E                    lda #46
+EB06  5D                      tstb
+EB07  2702                    beq pb_drawch
+EB09  8BFC                    adda #-4
+EB0B                  pb_drawch
+EB0B  AD9FF80A                jsr [outch]
                       
                               ; Increment beat counter
-EB1D  B64047                  lda seq_cur_beat
-EB20  4C                      inca
-EB21  B74047                  sta seq_cur_beat
-EB24  8110                    cmpa #16
-EB26  2DAE                    blt pb_loop
+EB0F  B64047                  lda seq_cur_beat
+EB12  4C                      inca
+EB13  B74047                  sta seq_cur_beat
+EB16  8110                    cmpa #16
+EB18  2DAE                    blt pb_loop
                       
                               ; If at end of line, start a new one
-EB28  867C                    lda #'|'
-EB2A  AD9FF80A                jsr [outch]
-EB2E  AD9FF80E                jsr [pcrlf]
-EB32  860F                    lda #15
-EB34  BDEC33                  jsr printspaces
-EB37  2094                    bra pb_run
+EB1A  867C                    lda #'|'
+EB1C  AD9FF80A                jsr [outch]
+EB20  AD9FF80E                jsr [pcrlf]
+EB24  860F                    lda #15
+EB26  BDEC25                  jsr printspaces
+EB29  2094                    bra pb_run
                       
-EB39                  pb_done ; Stop any notes being played
-EB39  BDED2F                  jsr stop_pb
+EB2B                  pb_done ; Stop any notes being played
+EB2B  BDED34                  jsr stop_pb
                       
-EB3C  39                      rts
+EB2E  39                      rts
                       
                       
                       ; =========================
                       ; Draw Screen subroutine
                       ; =========================
                       ; Draws the screen displaying the sequence
-EB3D                  drawscreen
-EB3D  AD9FF80E                jsr [pcrlf]
-EB41  5F                      clrb
-EB42  3404                    pshs b
+EB2F                  drawscreen
+EB2F  AD9FF80E                jsr [pcrlf]
+EB33  5F                      clrb
+EB34  3404                    pshs b
                               
-EB44                  ds_drawrow
+EB36                  ds_drawrow
                               ; Print out the pre-padding
-EB44  860A                    lda #10 ; Pre-padding without channel id
+EB36  860A                    lda #10 ; Pre-padding without channel id
                       
                               ; Channel headers get lower spacing for channel id prefix
-EB46  C103                    cmpb #3
-EB48  2D06                    blt ds_pleadspaces
-EB4A  C107                    cmpb #7
-EB4C  2C02                    bge ds_pleadspaces
-EB4E  8607                    lda #7 ; Pre-padding with channel id
-EB50                  ds_pleadspaces
-EB50  BDEC33                  jsr printspaces
+EB38  C103                    cmpb #3
+EB3A  2D06                    blt ds_pleadspaces
+EB3C  C107                    cmpb #7
+EB3E  2C02                    bge ds_pleadspaces
+EB40  8607                    lda #7 ; Pre-padding with channel id
+EB42                  ds_pleadspaces
+EB42  BDEC25                  jsr printspaces
                       
-EB53  C103                    cmpb #3
-EB55  2D18                    blt ds_printheader
-EB57  C107                    cmpb #7
-EB59  2C14                    bge ds_printheader
-EB5B  1F98                    tfr b,a
-EB5D  8B2E                    adda #46
-EB5F  AD9FF80A                jsr [outch]
-EB63  863A                    lda #':'
-EB65  AD9FF80A                jsr [outch]
-EB69  8620                    lda #32
-EB6B  AD9FF80A                jsr [outch]
+EB45  C103                    cmpb #3
+EB47  2D18                    blt ds_printheader
+EB49  C107                    cmpb #7
+EB4B  2C14                    bge ds_printheader
+EB4D  1F98                    tfr b,a
+EB4F  8B2E                    adda #46
+EB51  AD9FF80A                jsr [outch]
+EB55  863A                    lda #':'
+EB57  AD9FF80A                jsr [outch]
+EB5B  8620                    lda #32
+EB5D  AD9FF80A                jsr [outch]
                       
-EB6F                  ds_printheader
+EB61                  ds_printheader
                               ; Print row title
-EB6F  58                      lslb
-EB70  8EEF5B                  ldx #header_table
-EB73  3A                      abx
-EB74  AE84                    ldx ,x
-EB76  AD9FF80C                jsr [pdata]
+EB61  58                      lslb
+EB62  8EEF91                  ldx #header_table
+EB65  3A                      abx
+EB66  AE84                    ldx ,x
+EB68  AD9FF80C                jsr [pdata]
                       
                               ; Print space
-EB7A  8620                    lda #32
-EB7C  AD9FF80A                jsr [outch]
+EB6C  8620                    lda #32
+EB6E  AD9FF80A                jsr [outch]
                       
                               ; Print table right border
-EB80  C600                    ldb #0
-EB82                  ds_draw_border
-EB82  3502                    puls a
-EB84  3402                    pshs a
-EB86  8100                    cmpa #0
-EB88  2702                    beq ds_fr_c
-EB8A  861D                    lda #0x1D  ; If A is not the first row, set to '|' (0x7C), else set to 0x5C
-EB8C  8B5F            ds_fr_c adda #0x5F
-EB8E  AD9FF80A                jsr [outch]
-EB92  C101                    cmpb #1
-EB94  1027008A                lbeq ds_loop
+EB72  C600                    ldb #0
+EB74                  ds_draw_border
+EB74  3502                    puls a
+EB76  3402                    pshs a
+EB78  8100                    cmpa #0
+EB7A  2702                    beq ds_fr_c
+EB7C  861D                    lda #0x1D  ; If A is not the first row, set to '|' (0x7C), else set to 0x5C
+EB7E  8B5F            ds_fr_c adda #0x5F
+EB80  AD9FF80A                jsr [outch]
+EB84  C101                    cmpb #1
+EB86  1027008A                lbeq ds_loop
                       
                               ; Print contents of table
-EB98  3502                    puls a
-EB9A  3402                    pshs a
-EB9C  8100                    cmpa #0
-EB9E  273F                    beq ds_top_row
-EBA0  8101                    cmpa #1
-EBA2  2750                    beq ds_beats_row
-EBA4  8102                    cmpa #2
-EBA6  2733                    beq ds_mid_row
-EBA8  8107                    cmpa #7
-EBAA  272F                    beq ds_mid_row
+EB8A  3502                    puls a
+EB8C  3402                    pshs a
+EB8E  8100                    cmpa #0
+EB90  273F                    beq ds_top_row
+EB92  8101                    cmpa #1
+EB94  2750                    beq ds_beats_row
+EB96  8102                    cmpa #2
+EB98  2733                    beq ds_mid_row
+EB9A  8107                    cmpa #7
+EB9C  272F                    beq ds_mid_row
                       
                               ; Else channel row
                               ; Load base address of sequence
-EBAC  3502                    puls a
-EBAE  3402                    pshs a
-EBB0  8003                    suba #3
-EBB2  C610                    ldb #0x10
-EBB4  3D                      mul
-EBB5  8E4000                  ldx #seq_data_base
-EBB8  3A                      abx
+EB9E  3502                    puls a
+EBA0  3402                    pshs a
+EBA2  8003                    suba #3
+EBA4  C610                    ldb #0x10
+EBA6  3D                      mul
+EBA7  8E4000                  ldx #seq_data_base
+EBAA  3A                      abx
                               
-EBB9  4F                      clra
-EBBA  3402                    pshs a
-EBBC                  ds_draw_channel_beat
-EBBC  8602                    lda #2
-EBBE  BDEC33                  jsr printspaces
-EBC1  E680                    ldb ,x+
-EBC3  8620                    lda #32
-EBC5  5D                      tstb
-EBC6  2702                    beq ds_print_channel_val
-EBC8  8B0A                    adda #10
-EBCA                  ds_print_channel_val
-EBCA  AD9FF80A                jsr [outch]
+EBAB  4F                      clra
+EBAC  3402                    pshs a
+EBAE                  ds_draw_channel_beat
+EBAE  8602                    lda #2
+EBB0  BDEC25                  jsr printspaces
+EBB3  E680                    ldb ,x+
+EBB5  8620                    lda #32
+EBB7  5D                      tstb
+EBB8  2702                    beq ds_print_channel_val
+EBBA  8B0A                    adda #10
+EBBC                  ds_print_channel_val
+EBBC  AD9FF80A                jsr [outch]
                       
-EBCE  3502                    puls a
-EBD0  4C                      inca
-EBD1  3402                    pshs a
-EBD3  8110                    cmpa #16
+EBC0  3502                    puls a
+EBC2  4C                      inca
+EBC3  3402                    pshs a
+EBC5  8110                    cmpa #16
                       
-EBD5  26E5                    bne ds_draw_channel_beat
-EBD7  3502                    puls a
+EBC7  26E5                    bne ds_draw_channel_beat
+EBC9  3502                    puls a
                       
-EBD9  2042                    bra ds_border_close
+EBCB  2042                    bra ds_border_close
                       
                       
-EBDB                  ds_mid_row
-EBDB  862D                    lda #'-'
-EBDD  2002                    bra ds_draw_row
-EBDF                  ds_top_row
-EBDF  865F                    lda #'_'
-EBE1                  ds_draw_row
-EBE1  3402                    pshs a
-EBE3  C630                    ldb #0x30       ; Row Width: 48
-EBE5  3502            ds_dr_l puls a          ; Print variable on stack b times
-EBE7  3402                    pshs a
-EBE9  AD9FF80A                jsr [outch]
-EBED  5A                      decb
-EBEE  26F5                    bne ds_dr_l
-EBF0  3502                    puls a
-EBF2  2029                    bra ds_border_close
+EBCD                  ds_mid_row
+EBCD  862D                    lda #'-'
+EBCF  2002                    bra ds_draw_row
+EBD1                  ds_top_row
+EBD1  865F                    lda #'_'
+EBD3                  ds_draw_row
+EBD3  3402                    pshs a
+EBD5  C630                    ldb #0x30       ; Row Width: 48
+EBD7  3502            ds_dr_l puls a          ; Print variable on stack b times
+EBD9  3402                    pshs a
+EBDB  AD9FF80A                jsr [outch]
+EBDF  5A                      decb
+EBE0  26F5                    bne ds_dr_l
+EBE2  3502                    puls a
+EBE4  2029                    bra ds_border_close
                       
-EBF4                  ds_beats_row
-EBF4  C601                    ldb #1
+EBE6                  ds_beats_row
+EBE6  C601                    ldb #1
                       
-EBF6                  ds_print_beat
+EBE8                  ds_print_beat
                               ; Print space
-EBF6  8620                    lda #32
-EBF8  AD9FF80A                jsr [outch]
+EBE8  8620                    lda #32
+EBEA  AD9FF80A                jsr [outch]
                       
                               ; Print tens digit, or space
-EBFC  8620                    lda #32
-EBFE  C10A                    cmpb #10
-EC00  2D02                    blt ds_beat_print_tens
-EC02  8631                    lda #'1'
-EC04                  ds_beat_print_tens
-EC04  AD9FF80A                jsr [outch]
+EBEE  8620                    lda #32
+EBF0  C10A                    cmpb #10
+EBF2  2D02                    blt ds_beat_print_tens
+EBF4  8631                    lda #'1'
+EBF6                  ds_beat_print_tens
+EBF6  AD9FF80A                jsr [outch]
                       
                               ; Print ones digit
-EC08  1F98                    tfr b,a
-EC0A  C10A                    cmpb #10
-EC0C  2D02                    blt ds_beat_skip_subtract
-EC0E  800A                    suba #10
-EC10                  ds_beat_skip_subtract
-EC10  8B30                    adda #48
-EC12  AD9FF80A                jsr [outch]
+EBFA  1F98                    tfr b,a
+EBFC  C10A                    cmpb #10
+EBFE  2D02                    blt ds_beat_skip_subtract
+EC00  800A                    suba #10
+EC02                  ds_beat_skip_subtract
+EC02  8B30                    adda #48
+EC04  AD9FF80A                jsr [outch]
                       
-EC16  5C                      incb
-EC17  C110                    cmpb #16
-EC19  2FDB                    ble ds_print_beat
+EC08  5C                      incb
+EC09  C110                    cmpb #16
+EC0B  2FDB                    ble ds_print_beat
                       
-EC1B  2000                    bra ds_border_close
+EC0D  2000                    bra ds_border_close
                       
                       
                               ; Print table border
-EC1D                  ds_border_close
-EC1D  C601                    ldb #1
-EC1F  16FF60                  lbra ds_draw_border
-EC22                  ds_loop
-EC22  AD9FF80E                jsr [pcrlf]
-EC26  3504                    puls b
-EC28  5C                      incb
+EC0F                  ds_border_close
+EC0F  C601                    ldb #1
+EC11  16FF60                  lbra ds_draw_border
+EC14                  ds_loop
+EC14  AD9FF80E                jsr [pcrlf]
+EC18  3504                    puls b
+EC1A  5C                      incb
                       
-EC29  C108                    cmpb #8
-EC2B  2705                    beq ds_done
+EC1B  C108                    cmpb #8
+EC1D  2705                    beq ds_done
                               
-EC2D  3404                    pshs b
-EC2F  16FF12                  lbra ds_drawrow
+EC1F  3404                    pshs b
+EC21  16FF12                  lbra ds_drawrow
                       
-EC32  39              ds_done rts
+EC24  39              ds_done rts
                       
                       ; =========================
                       ; Print Spaces Subroutine
                       ; =========================
                       ; Prints number of spaces in A register
-EC33                  printspaces
-EC33  3404                    pshs b
-EC35  1F89                    tfr a,b
-EC37  5D              ps_loop tstb
-EC38  270D                    beq ps_done
-EC3A  3404                    pshs b
-EC3C  8620                    lda #32  ; Load with space
-EC3E  AD9FF80A                jsr [outch]
-EC42  3504                    puls b
-EC44  5A                      decb
-EC45  20F0                    bra ps_loop
-EC47  3504            ps_done puls b
-EC49  39                      rts
+EC25                  printspaces
+EC25  3404                    pshs b
+EC27  1F89                    tfr a,b
+EC29  5D              ps_loop tstb
+EC2A  270D                    beq ps_done
+EC2C  3404                    pshs b
+EC2E  8620                    lda #32  ; Load with space
+EC30  AD9FF80A                jsr [outch]
+EC34  3504                    puls b
+EC36  5A                      decb
+EC37  20F0                    bra ps_loop
+EC39  3504            ps_done puls b
+EC3B  39                      rts
                       
                       ; =========================
                       ; Delay Subroutine
                       ; =========================
-EC4A                  delay_tempo
-EC4A  3430                    pshs x,Y
-EC4C  1F12                    tfr x,y
-EC4E  8E0000                  ldx #0
-EC51  C601                    ldb #1
-EC53  4F              d_ms    clra
-EC54  4C              d_cyc   inca
-EC55  AD9FF808                jsr [inchek]
-EC59  2703                    beq d_nkey
-EC5B  BDED43                  jsr isr_key
-EC5E  814A            d_nkey  cmpa #74
-EC60  26F2                    bne d_cyc
+                      ; x,y register is saved
+EC3C                  delay_tempo
+EC3C  3430                    pshs x,y
+EC3E  1F12                    tfr x,y
+EC40  8E0000                  ldx #0
+EC43  C601                    ldb #1
+EC45  4F              d_ms    clra
+EC46  4C              d_cyc   inca
+EC47  AD9FF808                jsr [inchek]
+EC4B  2703                    beq d_nkey
+EC4D  BDED48                  jsr isr_key
+EC50  814A            d_nkey  cmpa #74
+EC52  26F2                    bne d_cyc
                       
-EC62  3A                      abx
-EC63  8C0014                  cmpx #gate_time
-EC66  2606                    bne d_cnt
-EC68  7FE028                  clr seq_gate_addr
-EC6B  7FE024                  clr seq_drum_addr
-EC6E  BC4040          d_cnt   cmpx seq_tempo
-EC71  26E0                    bne d_ms
-EC73  3530                    puls x,y
-EC75  39                      rts
+EC54  3A                      abx
+EC55  8C0014                  cmpx #gate_time
+EC58  2606                    bne d_cnt
+EC5A  7FE028                  clr seq_gate_addr
+EC5D  7FE024                  clr seq_drum_addr
+EC60  BC4040          d_cnt   cmpx seq_tempo
+EC63  26E0                    bne d_ms
+EC65  3530                    puls x,y
+EC67  39                      rts
+                      
+                      ; =========================
+                      ; Delay Gate Time Subroutine
+                      ; =========================
+                      ; a,b registers are not saved
+EC68                  delay_gate_time
+                              ; Delay for approx. gate_time to give time for gate to settle when performing playback
+                              ; Clears gates and drum channels at end of subroutine
+                              
+EC68  CC0F00                  ldd #$C0*gate_time
+EC6B  AD9FF808        rp_cyc  jsr [inchek]    ; Waste cycles, value being thrown out
+EC6F  830001                  subd #1
+EC72  26F7                    bne rp_cyc
+                      
+EC74  7FE028                  clr seq_gate_addr
+EC77  7FE024                  clr seq_drum_addr
+EC7A  39                      rts
                       
                       ; =========================
                       ; Play Beat Subroutine
                       ; =========================
                       ; The a register should contain the offset
                       ; The b,x,y register is saved
-EC76                  play_beat
-EC76  3434                    pshs x,y,b
+EC7B                  play_beat
+EC7B  3434                    pshs x,y,b
                       
                               ; Setup initial address
-EC78  8E4000                  ldx #seq_data_base
-EC7B  1F89                    tfr a,b
-EC7D  3A                      abx
-EC7E  3410                    pshs x                  ; Save x register to be pulled again to save calculation time
-EC80  108EE020                ldy #seq_dac_base
+EC7D  8E4000                  ldx #seq_data_base
+EC80  1F89                    tfr a,b
+EC82  3A                      abx
+EC83  3410                    pshs x                  ; Save x register to be pulled again to save calculation time
+EC85  108EE020                ldy #seq_dac_base
                       
                               ; Set channel count to transfer to dac
-EC84  C603                    ldb #3
+EC89  C603                    ldb #3
                               
                               ; Write each channel's value for the given beat
-EC86  3404            p_b_wch pshs b
-EC88  A684                    lda ,x
-EC8A  A7A0                    sta ,y+
-EC8C  C610                    ldb #16
-EC8E  3A                      abx
-EC8F  3504                    puls b
-EC91  5A                      decb
-EC92  26F2                    bne p_b_wch
+EC8B  3404            p_b_wch pshs b
+EC8D  A684                    lda ,x
+EC8F  A7A0                    sta ,y+
+EC91  C610                    ldb #16
+EC93  3A                      abx
+EC94  3504                    puls b
+EC96  5A                      decb
+EC97  26F2                    bne p_b_wch
                       
                               ; Finally store last A value into drum channel
-EC94  A684                    lda ,x
-EC96  B7E024                  sta seq_drum_addr
+EC99  A684                    lda ,x
+EC9B  B7E024                  sta seq_drum_addr
                       
                               ; Recalculate the gate
                               ; This is fine loop through again, since there will need to be at least 20us for the DAC to settle, so we can waste some time
-EC99  3510                    puls x
-EC9B  8601                    lda #1                  ; temp register contains the value to or for that specific channel if it is non-zero for gating
-EC9D  B7404D                  sta play_beat_temp
-ECA0  4F                      clra                    ; a contains the value to write to the gate
-ECA1  C604                    ldb #4                  ; b contains number of channels to search
-ECA3  6D84            p_b_cg  tst ,x
-ECA5  2703                    beq p_b_ng
-ECA7  BA404D                  ora play_beat_temp
-ECAA  78404D          p_b_ng  lsl play_beat_temp
-ECAD  3404                    pshs b
-ECAF  C610                    ldb #16
-ECB1  3A                      abx
-ECB2  3504                    puls b
-ECB4  5A                      decb
-ECB5  26EC                    bne p_b_cg
+EC9E  3510                    puls x
+ECA0  8601                    lda #1                  ; temp register contains the value to or for that specific channel if it is non-zero for gating
+ECA2  B7404D                  sta play_beat_temp
+ECA5  4F                      clra                    ; a contains the value to write to the gate
+ECA6  C604                    ldb #4                  ; b contains number of channels to search
+ECA8  6D84            p_b_cg  tst ,x
+ECAA  2703                    beq p_b_ng
+ECAC  BA404D                  ora play_beat_temp
+ECAF  78404D          p_b_ng  lsl play_beat_temp
+ECB2  3404                    pshs b
+ECB4  C610                    ldb #16
+ECB6  3A                      abx
+ECB7  3504                    puls b
+ECB9  5A                      decb
+ECBA  26EC                    bne p_b_cg
                       
-ECB7  B7E028                  sta seq_gate_addr
+ECBC  B7E028                  sta seq_gate_addr
                       
-ECBA  3534                    puls x,y,b
-ECBC  39                      rts
+ECBF  3534                    puls x,y,b
+ECC1  39                      rts
                       
                       ; =========================
                       ; Get Beat Subroutine
@@ -884,104 +896,104 @@ ECBC  39                      rts
                       ; x is the address to store data in
                       ; Saves y,x
                       ; Returns: cc.z = 0 on no data written, cc.z = 1 on data written
-ECBD                  get_beat
-ECBD  3420                    pshs y
-ECBF  812E                    cmpa #clear_note_key
-ECC1  2762                    beq gb_clrv
-ECC3  8120                    cmpa #32
-ECC5  2763                    beq gb_done
-ECC7  C104                    cmpb #4         ; If on drum channel, do different decoding
-ECC9  2744                    beq gb_drum
+ECC2                  get_beat
+ECC2  3420                    pshs y
+ECC4  812E                    cmpa #clear_note_key
+ECC6  2762                    beq gb_clrv
+ECC8  8120                    cmpa #32
+ECCA  2763                    beq gb_done
+ECCC  C104                    cmpb #4         ; If on drum channel, do different decoding
+ECCE  2744                    beq gb_drum
                       
                               ; Check for octave lookup
-ECCB  8131                    cmpa #'1'
-ECCD  2D1C                    blt gb_decode_key_seq
-ECCF  8134                    cmpa #'4'
-ECD1  2E18                    bgt gb_decode_key_seq
+ECD0  8131                    cmpa #'1'
+ECD2  2D1C                    blt gb_decode_key_seq
+ECD4  8134                    cmpa #'4'
+ECD6  2E18                    bgt gb_decode_key_seq
                               ; Set octave
                               
                               ; Print octave
-ECD3  AD9FF80A                jsr [outch]
+ECD8  AD9FF80A                jsr [outch]
                       
                               ; Update state for octave input
-ECD7  7A4048                  dec seq_num_spaces
-ECDA  C601                    ldb #1
-ECDC  F7404B                  stb octave_printed
+ECDC  7A4048                  dec seq_num_spaces
+ECDF  C601                    ldb #1
+ECE1  F7404B                  stb octave_printed
                       
-ECDF  8031                    suba #49        ; Convert octave to value 0-3
+ECE4  8031                    suba #49        ; Convert octave to value 0-3
                       
                               ; Do octave conversion math
-ECE1  C633                    ldb #51
-ECE3  3D                      mul
-ECE4  5C                      incb
-ECE5  F7404A                  stb current_octave
+ECE6  C633                    ldb #51
+ECE8  3D                      mul
+ECE9  5C                      incb
+ECEA  F7404A                  stb current_octave
                       
-ECE8  4F                      clra
-ECE9  203F                    bra gb_done
+ECED  4F                      clra
+ECEE  203F                    bra gb_done
                       
-ECEB                  gb_decode_key_seq
+ECF0                  gb_decode_key_seq
                               ; Try lookup key
                       
                               ; Load y with the keyboard_seq lookup string
                               ; Search through y until either character is found or $04 is reached
-ECEB  108EEF90                ldy #keyboard_sequence
+ECF0  108EEFC6                ldy #keyboard_sequence
                               ; b register contains value at end of index string (when search is finished)
-ECEF  C604                    ldb #4
-ECF1                  gb_lookup_key_loop
-ECF1  E1A4                    cmpb ,y
-ECF3  2735                    beq gb_done
-ECF5  A1A0                    cmpa ,y+
-ECF7  26F8                    bne gb_lookup_key_loop
+ECF4  C604                    ldb #4
+ECF6                  gb_lookup_key_loop
+ECF6  E1A4                    cmpb ,y
+ECF8  2735                    beq gb_done
+ECFA  A1A0                    cmpa ,y+
+ECFC  26F8                    bne gb_lookup_key_loop
                               
-ECF9  1F20                    tfr y,d
-ECFB  B3EFA3                  subd keyboard_seq_offset
+ECFE  1F20                    tfr y,d
+ED00  B3EFD9                  subd keyboard_seq_offset
                       
                               ; b now contains the # of half-steps up from A
-ECFE  1F98                    tfr b,a
+ED03  1F98                    tfr b,a
                               ; Divide by 4
-ED00  44                      lsra
-ED01  44                      lsra
-ED02  B7404C                  sta get_beat_temp
+ED05  44                      lsra
+ED06  44                      lsra
+ED07  B7404C                  sta get_beat_temp
                       
                               ; Also multiply by 4
-ED05  58                      lslb
-ED06  58                      lslb
+ED0A  58                      lslb
+ED0B  58                      lslb
                               ; Add the val/4 + val*4
-ED07  FB404C                  addb get_beat_temp
+ED0C  FB404C                  addb get_beat_temp
                               ; Add octave offset
-ED0A  FB404A                  addb current_octave
+ED0F  FB404A                  addb current_octave
                       
-ED0D  2017                    bra gb_write
+ED12  2017                    bra gb_write
                       
-ED0F                  gb_drum ; Decode Drum Data
-ED0F  8131                    cmpa #'1'
-ED11  2D17                    blt gb_done
-ED13  8138                    cmpa #'8'
-ED15  2E13                    bgt gb_done
+ED14                  gb_drum ; Decode Drum Data
+ED14  8131                    cmpa #'1'
+ED16  2D17                    blt gb_done
+ED18  8138                    cmpa #'8'
+ED1A  2E13                    bgt gb_done
                       
                               ; a is now loaded with a character between 1 and 8
                               ; Convert entered character to value
-ED17  8030                    suba #48
-ED19  C601                    ldb #1
-ED1B  4A              gb_conv deca
-ED1C  2703                    beq gb_or_data
-ED1E  58                      lslb
-ED1F  20FA                    bra gb_conv
-ED21                  gb_or_data
-ED21  EA84                    orb ,x
-ED23  2001                    bra gb_write
+ED1C  8030                    suba #48
+ED1E  C601                    ldb #1
+ED20  4A              gb_conv deca
+ED21  2703                    beq gb_or_data
+ED23  58                      lslb
+ED24  20FA                    bra gb_conv
+ED26                  gb_or_data
+ED26  EA84                    orb ,x
+ED28  2001                    bra gb_write
                       
-ED25                  gb_clrv ; Create a value to clear when writing to memory
-ED25  5F                      clrb
-ED26                  gb_write
+ED2A                  gb_clrv ; Create a value to clear when writing to memory
+ED2A  5F                      clrb
+ED2B                  gb_write
                               ; Write the calculated value to the sequencer memory
-ED26  E784                    stb ,x
+ED2B  E784                    stb ,x
                       
                               ; Dirty hack to make it return success on either space or successful decoding
-ED28  8620                    lda #32
-ED2A  3520            gb_done puls y
-ED2C  8120                    cmpa #32
-ED2E  39                      rts
+ED2D  8620                    lda #32
+ED2F  3520            gb_done puls y
+ED31  8120                    cmpa #32
+ED33  39                      rts
                       
                       ; =========================
                       ; Stop Playback Subroutine
@@ -989,202 +1001,233 @@ ED2E  39                      rts
                       ; Clears all 4 DAC channels, the 8 drum channels, and the gate signals
                       ; Does not take any arguments
                       ; Saves a,b,x,y
-ED2F                  stop_pb
-ED2F  3416                    pshs x,a,b
-ED31  8EE020                  ldx #seq_dac_base
-ED34  4F                      clra
-ED35  5F                      clrb
-ED36  ED84                    std ,x
-ED38  ED02                    std 2,x
-ED3A  7FE024                  clr seq_drum_addr
-ED3D  7FE028                  clr seq_gate_addr
-ED40  3516                    puls x,a,b
-ED42  39                      rts
+ED34                  stop_pb
+ED34  3416                    pshs x,a,b
+ED36  8EE020                  ldx #seq_dac_base
+ED39  4F                      clra
+ED3A  5F                      clrb
+ED3B  ED84                    std ,x
+ED3D  ED02                    std 2,x
+ED3F  7FE024                  clr seq_drum_addr
+ED42  7FE028                  clr seq_gate_addr
+ED45  3516                    puls x,a,b
+ED47  39                      rts
                       
-ED43  3406            isr_key pshs a,b
+ED48  3406            isr_key pshs a,b
                               
-ED45  F64046                  ldb seq_record_ch
-ED48  C1FF                    cmpb #0xFF
-ED4A  10270082                lbeq isr_end    ; Don't process any keypresses if stopping
+ED4A  F64046                  ldb seq_record_ch
+ED4D  C1FF                    cmpb #0xFF
+ED4F  2761                    beq isr_end     ; Don't process any keypresses if stopping
                               
-ED4E  AD9FF804                jsr [inch]
+ED51  AD9FF804                jsr [inch]
                       
                               ; Process universal keypresses
-ED52  815A                    cmpa #stop_key
-ED54  2744                    beq isr_stop_playback
-ED56  814D                    cmpa #playback_key
-ED58  2757                    beq isr_do_playback
-ED5A  814E                    cmpa #record_key
-ED5C  2743                    beq isr_do_record
+ED55  815A                    cmpa #stop_key
+ED57  2754                    beq isr_stop_playback
+ED59  814D                    cmpa #playback_key
+ED5B  2768                    beq isr_do_playback
+ED5D  814E                    cmpa #record_key
+ED5F  2754                    beq isr_do_record
                       
                               ; Process keypresses depending on recording/playback/expecting channel data
-ED5E  C100                    cmpb #0
-ED60  276E                    beq isr_end     ; Nothing special to do during playback, only universal keypresses
-ED62  C1FE                    cmpb #0xFE
-ED64  2716                    beq isr_sel_ch  ; Do channel selection if it is waiting for a channel
+ED61  C100                    cmpb #0
+ED63  274D                    beq isr_end     ; Nothing special to do during playback, only universal keypresses
+ED65  C1FE                    cmpb #0xFE
+ED67  2726                    beq isr_sel_ch  ; Do channel selection if it is waiting for a channel
+                      
+                              ; Check if keypress is change channel
+ED69  8104                    cmpa #rec_ch1_key
+ED6B  2766                    beq isr_set_ch1
+ED6D  8110                    cmpa #rec_ch2_key
+ED6F  2766                    beq isr_set_ch2
+ED71  8109                    cmpa #rec_ch3_key
+ED73  2766                    beq isr_set_ch3
+ED75  8102                    cmpa #rec_ch4_key
+ED77  2766                    beq isr_set_ch4
                       
                               ; Check if keypress is clear
-ED66  8143                    cmpa #clear_key
-ED68  2755                    beq isr_do_clear
+ED79  8143                    cmpa #clear_key
+ED7B  2771                    beq isr_do_clear
                               
                               ; Everything else is recording and b now contains the channel to record to
-ED6A  3414                    pshs x,b
-ED6C  F64047                  ldb seq_cur_beat
-ED6F  BE4042                  ldx seq_record
-ED72  3A                      abx
-ED73  3504                    puls b
-ED75  BDECBD                  jsr get_beat
-ED78  3510                    puls x
+ED7D  3414                    pshs x,b
+ED7F  F64047                  ldb seq_cur_beat
+ED82  BE4042                  ldx seq_record
+ED85  3A                      abx
+ED86  3504                    puls b
+ED88  BDECC2                  jsr get_beat
+ED8B  3510                    puls x
                               
-ED7A  2054                    bra isr_end
+ED8D  2023                    bra isr_end
                       
-ED7C                  isr_sel_ch
-ED7C  8131                    cmpa #'1'
-ED7E  2D50                    blt isr_end
-ED80  8134                    cmpa #'4'
-ED82  2E4C                    bgt isr_end
-                              
+ED8F                  isr_sel_ch
+ED8F  8131                    cmpa #'1'
+ED91  2D1F                    blt isr_end
+ED93  8134                    cmpa #'4'
+ED95  2E1B                    bgt isr_end
+                      
+ED97                  isr_write_ch
                               ; Store selected channel
-ED84  8030                    suba #48  ; Convert '1'-'4' to 1-4
-ED86  B74046                  sta seq_record_ch
+ED97  8030                    suba #48  ; Convert '1'-'4' to 1-4
+ED99  B74046                  sta seq_record_ch
                       
                               ; Make channel range 0-3 to calculate record address
-ED89  3410                    pshs x
-ED8B  4A                      deca
-ED8C  C610                    ldb #0x10
-ED8E  3D                      mul
-ED8F  8E4000                  ldx #seq_data_base
-ED92  3A                      abx
-ED93  BF4042                  stx seq_record
-ED96  3510                    puls x
+ED9C  3410                    pshs x
+ED9E  4A                      deca
+ED9F  C610                    ldb #0x10
+EDA1  3D                      mul
+EDA2  8E4000                  ldx #seq_data_base
+EDA5  3A                      abx
+EDA6  BF4042                  stx seq_record
+EDA9  3510                    puls x
                       
-ED98  2036                    bra isr_end
+EDAB  2005                    bra isr_end
                       
-ED9A                  isr_stop_playback
-ED9A  86FF                    lda #0xFF
-ED9C  B74046                  sta seq_record_ch
-ED9F  202F                    bra isr_end
+EDAD                  isr_stop_playback
+EDAD  86FF                    lda #0xFF
+EDAF  B74046                  sta seq_record_ch
                       
-EDA1                  isr_do_record
+EDB2  3506            isr_end puls a,b
+EDB4  39                      rts
+                      
+EDB5                  isr_do_record
                               ; Print command to display
-EDA1  8652                    lda #'R'
-EDA3  AD9FF80A                jsr [outch]
-EDA7  7A4048                  dec seq_num_spaces
+EDB5  8652                    lda #'R'
+EDB7  AD9FF80A                jsr [outch]
+EDBB  7A4048                  dec seq_num_spaces
                       
                               ; Set to wait for pending press to switch recording channel
-EDAA  86FE                    lda #0xFE
-EDAC  B74046                  sta seq_record_ch
-EDAF  201F                    bra isr_end
+EDBE  86FE                    lda #0xFE
+EDC0  B74046                  sta seq_record_ch
+EDC3  20ED                    bra isr_end
                       
-EDB1                  isr_do_playback
+EDC5                  isr_do_playback
                               ; Print command to display
-EDB1  8650                    lda #'P'
-EDB3  AD9FF80A                jsr [outch]
-EDB7  7A4048                  dec seq_num_spaces
+EDC5  8650                    lda #'P'
+EDC7  AD9FF80A                jsr [outch]
+EDCB  7A4048                  dec seq_num_spaces
                       
                               ; Set to playback
-EDBA  7F4046                  clr seq_record_ch
-EDBD  2011                    bra isr_end
+EDCE  7F4046                  clr seq_record_ch
+EDD1  20DF                    bra isr_end
                       
-EDBF                  isr_do_clear
+EDD3                  isr_set_ch1
+EDD3  8601                    lda #1
+EDD5  200C                    bra isr_set_ch
+EDD7                  isr_set_ch2
+EDD7  8602                    lda #2
+EDD9  2008                    bra isr_set_ch
+EDDB                  isr_set_ch3
+EDDB  8603                    lda #3
+EDDD  2004                    bra isr_set_ch
+EDDF                  isr_set_ch4
+EDDF  8604                    lda #4
+EDE1  2000                    bra isr_set_ch
+                      
+EDE3                  isr_set_ch
+EDE3  8B30                    adda #48
+EDE5  AD9FF80A                jsr [outch]
+EDE9  7A4048                  dec seq_num_spaces
+                      
+EDEC  20A9                    bra isr_write_ch
+                      
+EDEE                  isr_do_clear
                               ; b contains current channel, clear that channel
                               ; Print command executed
-EDBF  8643                    lda #'C'
-EDC1  AD9FF80A                jsr [outch]
-EDC5  7A4048                  dec seq_num_spaces
+EDEE  8643                    lda #'C'
+EDF0  AD9FF80A                jsr [outch]
+EDF4  7A4048                  dec seq_num_spaces
                       
-EDC8  5A                      decb
-EDC9  3430                    pshs x,y
-EDCB  BDEA67                  jsr clear_channel
-EDCE  3530                    puls x,y
-                      
-EDD0  3506            isr_end puls a,b
-EDD2  39                      rts
+EDF7  5A                      decb
+EDF8  3430                    pshs x,y
+EDFA  BDEA4E                  jsr clear_channel
+EDFD  3530                    puls x,y
+EDFF  20B1                    bra isr_end
                       
                       ; =========================
                       ; Data Section
                       ; =========================
-EDD3  2A2A2A53575450432053657175656E6365722A2A2A0D0A banner  fcc "***SWTPC Sequencer***\r\n"
-EDEA  04                      fcb $04
-EDEB                  controls
-EDEB  4D3A20506C6179202D204E3A205265636F7264202D205A3A2053746F70202D20433A20436C656172204368202D20583A2054656D706F         fcc "M: Play - N: Record - Z: Stop - C: Clear Ch - X: Tempo"
-EE21  04                      fcb $04
-EE22                  controls2
-EE22  423A2044697265637420506C61796261636B202D20563A204D616E75616C20456E747279         fcc "B: Direct Playback - V: Manual Entry"
-EE46  04                      fcb $04
-EE47                  version
-EE47  0D0A417574686F723A526F6265727420506166666F726420323032312D323032330D0A4275696C643A         fcc "\r\nAuthor:Robert Pafford 2021-2023\r\nBuild:"
-EE70  31382D4F4646            fcc BUILD_ID
-EE76  0D0A                    fcb "\r\n"
-EE78  04                      fcb $04
-EE79                  playback_msg
-EE79  506C61796261636B         fcc "Playback"
-EE81  04                      fcb $04
-EE82                  record_msg
-EE82  3A526563                fcc ":Rec"
-EE86  04                      fcb $04
-EE87                  manual_msg
-EE87  3A4D616E75              fcc ":Manu"
-EE8C  04                      fcb $04
-EE8D                  channel_prompt_msg
-EE8D  43683F20                fcc "Ch? "
-EE91  04                      fcb $04
-EE92                  tempo_prompt_msg
-EE92  456E7465722054656D706F2028656E74657220746F20656E642C206F7468657220746F2061626F7274293A20         fcc "Enter Tempo (enter to end, other to abort): "
-EEBE  04                      fcb $04
-EEBF                  clear_prompt_msg
-EEBF  456E746572204368616E6E656C20746F20436C65617220286F7468657220746F2061626F7274293A20         fcc "Enter Channel to Clear (other to abort): "
-EEE8  04                      fcb $04
-EEE9                  realtime_ch_prompt_msg
-EEE9  456E746572204368616E6E656C20746F20506C617920286F7468657220746F2061626F7274293A20         fcc "Enter Channel to Play (other to abort): "
-EF11  04                      fcb $04
-EF12                  realtime_entry_msg
-EF12  0D0A5072657373204B65797320746F20506C61792E2E2E20284320746F206368616E6765206368616E6E656C2C205A20746F2061626F7274290D0A         fcc "\r\nPress Keys to Play... (C to change channel, Z to abort)\r\n"
-EF4D  04                      fcb $04
-EF4E                  tempo_set_msg
-EF4E  202D2054656D706F20536574         fcc " - Tempo Set"
-EF5A  04                      fcb $04
-EF5B                  header_table
-EF5B  EF6B                    fdb header_blank
-EF5D  EF70                    fdb header_beat
-EF5F  EF6B                    fdb header_blank
-EF61  EF75                    fdb header_ch1
-EF63  EF7A                    fdb header_ch2
-EF65  EF7F                    fdb header_ch3
-EF67  EF84                    fdb header_ch4
-EF69  EF6B                    fdb header_blank
-                      
-EF6B                  header_blank
-EF6B  20202020                fcc "    "
-EF6F  04                      fcb $04
-                      
-EF70                  header_beat
-EF70  42656174                fcc "Beat"
-EF74  04                      fcb $04
-                      
-EF75                  header_ch1
-EF75  4C656164                fcc "Lead"
-EF79  04                      fcb $04
-                      
-EF7A                  header_ch2
-EF7A  42617373                fcc "Bass"
-EF7E  04                      fcb $04
-                      
-EF7F                  header_ch3
-EF7F  43687264                fcc "Chrd"
+EE01  2A2A2A53575450432053657175656E6365722A2A2A0D0A banner  fcc "***SWTPC Sequencer***\r\n"
+EE18  04                      fcb $04
+EE19                  controls
+EE19  4D3A20506C6179202D204E3A205265636F7264202D205A3A2053746F70202D20433A20436C656172204368202D20583A2054656D706F         fcc "M: Play - N: Record - Z: Stop - C: Clear Ch - X: Tempo"
+EE4F  04                      fcb $04
+EE50                  controls2
+EE50  423A2044697265637420506C61796261636B202D20563A204D616E75616C20456E747279         fcc "B: Direct Playback - V: Manual Entry"
+EE74  04                      fcb $04
+EE75                  version
+EE75  0D0A417574686F723A526F6265727420506166666F726420323032312D323032330D0A4275696C643A         fcc "\r\nAuthor:Robert Pafford 2021-2023\r\nBuild:"
+EE9E  33362D4F4646            fcc BUILD_ID
+EEA4  0D0A                    fcb "\r\n"
+EEA6  04                      fcb $04
+EEA7                  playback_msg
+EEA7  506C61796261636B         fcc "Playback"
+EEAF  04                      fcb $04
+EEB0                  record_msg
+EEB0  3A526563                fcc ":Rec"
+EEB4  04                      fcb $04
+EEB5                  manual_msg
+EEB5  3A4D616E75              fcc ":Manu"
+EEBA  04                      fcb $04
+EEBB                  channel_prompt_msg
+EEBB  43683F20                fcc "Ch? "
+EEBF  04                      fcb $04
+EEC0                  tempo_prompt_msg
+EEC0  456E7465722054656D706F2028656E74657220746F20656E642C206F7468657220746F2061626F7274293A20         fcc "Enter Tempo (enter to end, other to abort): "
+EEEC  04                      fcb $04
+EEED                  clear_prompt_msg
+EEED  456E746572204368616E6E656C20746F20436C6561722028413A20616C6C2C206F7468657220746F2061626F7274293A20         fcc "Enter Channel to Clear (A: all, other to abort): "
+EF1E  04                      fcb $04
+EF1F                  realtime_ch_prompt_msg
+EF1F  456E746572204368616E6E656C20746F20506C617920286F7468657220746F2061626F7274293A20         fcc "Enter Channel to Play (other to abort): "
+EF47  04                      fcb $04
+EF48                  realtime_entry_msg
+EF48  0D0A5072657373204B65797320746F20506C61792E2E2E20284320746F206368616E6765206368616E6E656C2C205A20746F2061626F7274290D0A         fcc "\r\nPress Keys to Play... (C to change channel, Z to abort)\r\n"
 EF83  04                      fcb $04
+EF84                  tempo_set_msg
+EF84  202D2054656D706F20536574         fcc " - Tempo Set"
+EF90  04                      fcb $04
+EF91                  header_table
+EF91  EFA1                    fdb header_blank
+EF93  EFA6                    fdb header_beat
+EF95  EFA1                    fdb header_blank
+EF97  EFAB                    fdb header_ch1
+EF99  EFB0                    fdb header_ch2
+EF9B  EFB5                    fdb header_ch3
+EF9D  EFBA                    fdb header_ch4
+EF9F  EFA1                    fdb header_blank
                       
-EF84                  header_ch4
-EF84  4472756D                fcc "Drum"
-EF88  04                      fcb $04
-EF89                  oct_change_rp
-EF89  204F63740D0A            fcc " Oct\r\n"
-EF8F  04                      fcb $04
-EF90                  keyboard_sequence
-EF90  41575345444654475948554A4B4F4C503B27         fcc "AWSEDFTGYHUJKOLP;'"
-EFA2  04                      fcb $04
-EFA3                  keyboard_seq_offset
+EFA1                  header_blank
+EFA1  20202020                fcc "    "
+EFA5  04                      fcb $04
+                      
+EFA6                  header_beat
+EFA6  42656174                fcc "Beat"
+EFAA  04                      fcb $04
+                      
+EFAB                  header_ch1
+EFAB  4C656164                fcc "Lead"
+EFAF  04                      fcb $04
+                      
+EFB0                  header_ch2
+EFB0  42617373                fcc "Bass"
+EFB4  04                      fcb $04
+                      
+EFB5                  header_ch3
+EFB5  43687264                fcc "Chrd"
+EFB9  04                      fcb $04
+                      
+EFBA                  header_ch4
+EFBA  4472756D                fcc "Drum"
+EFBE  04                      fcb $04
+EFBF                  oct_change_rp
+EFBF  204F63740D0A            fcc " Oct\r\n"
+EFC5  04                      fcb $04
+EFC6                  keyboard_sequence
+EFC6  41575345444654475948554A4B4F4C503B27         fcc "AWSEDFTGYHUJKOLP;'"
+EFD8  04                      fcb $04
+EFD9                  keyboard_seq_offset
                               ; Keyboard sequence address offset in big endian
                               ; This needs to have 2 subtracted so when the address is subtracted it reports the right number
                               ; Since it starts at C, and A is the base for CV conversion, it needs to shift it by 3 half-steps, minus one because of post-indexing in the loop
-EFA3  EF8E                    fdb (keyboard_sequence-2)
+EFD9  EFC4                    fdb (keyboard_sequence-2)
