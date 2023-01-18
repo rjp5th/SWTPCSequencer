@@ -838,6 +838,11 @@ rp_cyc	jsr [inchek]	; Waste cycles, value being thrown out
 ; =========================
 ; The a register should contain the offset
 ; The b,x,y register is saved
+p_b_incy
+	tfr y,d
+	addd #1
+	tfr d,y
+	bra p_b_skipwrite
 play_beat
 	pshs x,y,b
 
@@ -854,7 +859,13 @@ play_beat
 	; Write each channel's value for the given beat
 p_b_wch	pshs b
 	lda ,x
+	tstb
+	beq p_b_ondrum
+	tsta
+	beq p_b_incy
+p_b_ondrum
 	sta ,y+
+p_b_skipwrite
 	ldb #16
 	abx
 	puls b
