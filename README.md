@@ -1,5 +1,7 @@
 # Basic Sequencer for SWTPC 6809
 
+## Check out Look Mum No Computer's YouTube video featuring this project [here](https://www.youtube.com/watch?v=KA4Z7n_I14A)!
+
 ## Features
 * Recording on four different channels
     * 3 synth channels, 1 drum channel
